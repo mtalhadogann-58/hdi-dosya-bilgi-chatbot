@@ -29,10 +29,7 @@ export default function Home() {
   const [showOps, setShowOps] = useState(false);
 
   const examples = useMemo(() => [
-    "Hasar dosyamın durumunu öğrenmek istiyorum",
-    "Dosya numaramı bilmiyorum, plakadan bulabilir miyiz?",
-    "15 Mart'taki kazamı soruyorum",
-    "Eksik evrak ve ödeme durumunu birlikte öğrenmek istiyorum"
+    "Hasar dosyamın durumunu öğrenmek istiyorum"
   ], []);
 
   async function bootstrap() {
