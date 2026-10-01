@@ -3,7 +3,7 @@
 ## Mimari prensip
 **AI konuşmayı yönetir. Sistem gerçeği doğrular. Kural motoru sınırı çizer.**
 
-V4, V3'teki lineer state-machine yaklaşımını kaldırır.
+Lineer state-machine yaklaşımını kaldırır.
 
 ### AI'nın görevi
 - Kullanıcı niyetini ve diyalog hareketini anlamak
