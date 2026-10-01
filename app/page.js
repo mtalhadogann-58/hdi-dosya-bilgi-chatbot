@@ -14,7 +14,7 @@ function getClientContext() {
 }
 
 function fallbackGreeting(hour) {
-  const salutation = hour < 11 ? "Günaydın" : hour < 18 ? "İyi günler" : "İyi akşamlar";
+  const salutation = hour < 5 ? "İyi geceler" : hour < 11 ? "Günaydın" : hour < 17 ? "İyi günler" : hour < 23 ? "İyi akşamlar";
   return `${salutation}, ben HDI Sigorta Dijital Asistanı TalhaGPT. Size nasıl yardımcı olabilirim?`;
 }
 
