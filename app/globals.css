@@ -1,0 +1,28 @@
+:root{
+  --green:#07884f;--green2:#0aa55e;--ink:#14231b;--muted:#68766f;--line:#e2e9e5;
+  --bg:#f3f7f5;--soft:#f0f5f2;--danger:#b42318;--warning:#9a6700
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:linear-gradient(135deg,#edf5f1,#fafcfb);color:var(--ink)}
+button,textarea{font:inherit}
+.shell{min-height:100vh;padding:22px;display:grid;place-items:center}
+.appCard{width:min(1040px,100%);height:min(900px,calc(100vh - 44px));background:#fff;border:1px solid var(--line);border-radius:24px;box-shadow:0 28px 70px rgba(21,54,36,.12);overflow:hidden;display:flex;flex-direction:column}
+.topbar{padding:17px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}
+.brand{display:flex;align-items:center;gap:12px}.logo{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;color:#fff;font-weight:900;background:linear-gradient(135deg,var(--green),var(--green2))}
+.brand strong{display:block;font-size:16px}.brand span{display:block;color:var(--muted);font-size:12px;margin-top:3px}
+.status{font-size:12px;color:var(--green);display:flex;gap:7px;align-items:center}.status i{width:8px;height:8px;border-radius:50%;background:#24b76f;box-shadow:0 0 0 4px #e4f7ed}
+.toolbar{padding:9px 20px;border-bottom:1px solid var(--line);background:#fbfcfb;display:flex;gap:8px;align-items:center;overflow:auto}
+.toolbar button,.suggestions button,.quickActions button{border:1px solid var(--line);background:#fff;border-radius:999px;padding:8px 12px;cursor:pointer;color:#34453b;font-size:12px;white-space:nowrap}
+.toolbar .ghost{margin-left:auto}.toolbar button:hover,.suggestions button:hover,.quickActions button:hover{border-color:#a8cfba;background:#f3faf6}
+.demoBox{margin:10px 20px 0;padding:12px 14px;border:1px dashed #acd8bf;background:#f4fbf7;border-radius:13px;font-size:12px}.demoBox p{margin:4px 0}.demoBox small{color:var(--muted)}
+.opsBox{margin:10px 20px 0;display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
+.opsBox div{border:1px solid var(--line);border-radius:10px;padding:8px 9px;background:#fbfcfb;min-width:0}.opsBox span{display:block;font-size:9px;color:var(--muted);text-transform:uppercase}.opsBox b{display:block;font-size:11px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.messages{flex:1;overflow:auto;padding:20px;display:flex;flex-direction:column;gap:12px;scroll-behavior:smooth}
+.row{display:flex;gap:9px;max-width:80%}.row.user{align-self:flex-end;flex-direction:row-reverse}.row.assistant{align-self:flex-start}
+.avatar{width:30px;height:30px;flex:0 0 30px;border-radius:9px;display:grid;place-items:center;font-size:10px;font-weight:800;color:#fff;background:var(--green);margin-top:2px}
+.bubble{border-radius:16px;padding:11px 14px;line-height:1.5;font-size:14px;white-space:pre-wrap}.assistant .bubble{background:var(--soft);border-top-left-radius:5px}.user .bubble{background:linear-gradient(135deg,var(--green),#0b9558);color:#fff;border-top-right-radius:5px}
+.typing{display:flex;gap:4px;align-items:center}.typing span{width:6px;height:6px;border-radius:50%;background:#829189;animation:pulse 1s infinite}.typing span:nth-child(2){animation-delay:.15s}.typing span:nth-child(3){animation-delay:.3s}@keyframes pulse{0%,80%,100%{opacity:.25}40%{opacity:1}}
+.quickActions,.suggestions{padding:0 20px 10px;display:flex;flex-wrap:wrap;gap:7px}.quickActions button{border-color:#abd3bd;background:#f1faf5;color:#076b40;font-weight:650}
+.composer{margin:0 20px 9px;border:1px solid #ccd7d1;border-radius:15px;padding:8px;display:flex;gap:8px;align-items:flex-end}.composer textarea{resize:none;border:0;outline:0;width:100%;padding:9px;line-height:1.4;max-height:120px}.composer button{border:0;background:var(--green);color:#fff;border-radius:11px;padding:10px 16px;font-weight:700;cursor:pointer}.composer button:disabled{opacity:.45}
+footer{text-align:center;color:#8b9690;font-size:10px;padding:0 18px 11px}
+@media(max-width:720px){.shell{padding:0}.appCard{height:100vh;border:0;border-radius:0}.row{max-width:92%}.opsBox{grid-template-columns:1fr 1fr}.toolbar .ghost{margin-left:0}}
