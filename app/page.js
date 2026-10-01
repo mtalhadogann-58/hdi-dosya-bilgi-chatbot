@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 
 const initialMessages = [
-  { role: "assistant", content: "Merhaba, ben HDI Sigorta Dijital Asistanı. Size nasıl yardımcı olabilirim?" }
+  { role: "assistant", content: "Merhaba, ben HDI Sigorta Dijital Asistanı TalhaGPT. Size nasıl yardımcı olabilirim?" }
 ];
 
 export default function Home() {
