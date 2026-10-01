@@ -1,8 +1,8 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "HDI Dijital Asistan",
-  description: "HDI Dosya Bilgi AI Assistant PoC"
+  title: "Dijital Asistan",
+  description: "Dosya Bilgi AI Assistant TEST SÜRÜMÜ"
 };
 
 export default function RootLayout({ children }) {
