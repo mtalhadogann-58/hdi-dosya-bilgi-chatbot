@@ -1913,7 +1913,7 @@ Hemen cevap ver.
       <aside className="rail">
         <div className="railBrand">
           <div className="hdiMark">
-            HDI
+            58
           </div>
 
           <div>
