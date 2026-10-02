@@ -113,6 +113,20 @@ const VERIFICATION_GUIDES = {
   },
 };
 
+const DISPLAY_FIELD_KEYS = {
+  "Dosya No": ["dosyaNo"],
+  "Poliçe No": ["policeNo"],
+  Plaka: ["plaka"],
+  TCKN: ["tckn"],
+  VKN: ["vkn"],
+  "TCKN / VKN": ["tckn", "vkn"],
+  Telefon: ["telefon"],
+  "Doğum Tarihi": ["dogumTarihi"],
+  "Partaj Kodu": ["partajNo"],
+  "Servis Anlaşma Kodu": ["servisKodu"],
+  "Eksper Anlaşma Kodu": ["eksperKodu"],
+};
+
 function uid(prefix = "item") {
   return `${prefix}-${Date.now()}-${Math.random()
     .toString(36)
@@ -124,17 +138,22 @@ function getClientContext(channel = "chat") {
 
   return {
     locale: navigator.language || "tr-TR",
+
     timeZone:
       Intl.DateTimeFormat().resolvedOptions().timeZone ||
       "Europe/Istanbul",
+
     localIso: now.toISOString(),
+
     localHour: now.getHours(),
+
     localDay: now.toLocaleDateString("tr-TR", {
       weekday: "long",
       year: "numeric",
       month: "long",
       day: "numeric",
     }),
+
     channel,
   };
 }
@@ -156,7 +175,9 @@ function waitForDataChannel(dc) {
 
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
-      reject(new Error("Ses bağlantısı zaman aşımına uğradı."));
+      reject(
+        new Error("Ses bağlantısı zaman aşımına uğradı.")
+      );
     }, 12000);
 
     dc.addEventListener(
@@ -172,7 +193,10 @@ function waitForDataChannel(dc) {
       "error",
       () => {
         clearTimeout(timer);
-        reject(new Error("Ses bağlantısı açılamadı."));
+
+        reject(
+          new Error("Ses bağlantısı açılamadı.")
+        );
       },
       { once: true }
     );
@@ -210,7 +234,9 @@ function Waveform({
   type,
 }) {
   return (
-    <div className={`waveBox ${active ? "active" : ""} ${type}`}>
+    <div
+      className={`waveBox ${active ? "active" : ""} ${type}`}
+    >
       <div className="waveTitle">
         <b>{title}</b>
         <span>{subtitle}</span>
@@ -239,21 +265,181 @@ function PanelButton({
 }) {
   return (
     <button
-      className={`panelButton ${active ? "active" : ""}`}
+      className={`panelButton ${
+        active ? "active" : ""
+      }`}
       onClick={onClick}
       type="button"
     >
-      <span className="panelIcon">{icon}</span>
+      <span className="panelIcon">
+        {icon}
+      </span>
+
       <span>{label}</span>
 
-      {badge !== undefined && badge !== null && badge !== "" && (
-        <b className="panelBadge">{badge}</b>
-      )}
+      {badge !== undefined &&
+        badge !== null &&
+        badge !== "" && (
+          <b className="panelBadge">
+            {badge}
+          </b>
+        )}
 
       <span className="panelChevron">
         {active ? "⌃" : "⌄"}
       </span>
     </button>
+  );
+}
+
+function VerificationAssistant({
+  status,
+  matchedCount,
+  activeRole,
+  guide,
+  evidence,
+  matchedFields,
+  onOpen,
+}) {
+  const verified =
+    status === "VERIFIED";
+
+  function getFieldState(displayName) {
+    const keys =
+      DISPLAY_FIELD_KEYS[displayName] || [];
+
+    const matched = keys.some((key) =>
+      matchedFields.includes(key)
+    );
+
+    if (matched) {
+      return "matched";
+    }
+
+    const provided = keys.some(
+      (key) =>
+        Array.isArray(evidence[key]) &&
+        evidence[key].length > 0
+    );
+
+    if (provided) {
+      return "provided";
+    }
+
+    return "idle";
+  }
+
+  if (verified) {
+    return (
+      <div className="verificationAssistant verified">
+        <div className="verificationCompactIcon">
+          ✓
+        </div>
+
+        <div className="verificationCompactText">
+          <b>Kimlik doğrulandı</b>
+
+          <span>
+            {ROLE_LABELS[activeRole] ||
+              "Arayan"}{" "}
+            · 2 bağımsız bilgi eşleşti
+          </span>
+        </div>
+
+        <button
+          type="button"
+          className="verificationDetailButton"
+          onClick={onOpen}
+        >
+          Detay
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="verificationAssistant">
+      <div className="verificationAssistHead">
+        <div className="verificationProgress">
+          <strong>
+            {matchedCount}
+          </strong>
+
+          <span>/2</span>
+        </div>
+
+        <div className="verificationAssistTitle">
+          <b>
+            Kimlik doğrulama
+          </b>
+
+          <span>
+            Aynı dosyayla ilişkili herhangi
+            2 farklı bilgi yeterli.
+          </span>
+        </div>
+
+        <button
+          type="button"
+          className="verificationDetailButton"
+          onClick={onOpen}
+        >
+          Detay
+        </button>
+      </div>
+
+      <div className="verificationAssistBody">
+        <div className="verificationRoleLine">
+          <span>
+            {activeRole
+              ? `${ROLE_LABELS[activeRole]} doğrulaması`
+              : "Kullanılabilecek bilgiler"}
+          </span>
+
+          {guide.priority && (
+            <small>
+              ★ Öncelikli:{" "}
+              <b>{guide.priority}</b>
+              {" · "}
+              zorunlu değil
+            </small>
+          )}
+        </div>
+
+        <div className="verificationAssistFields">
+          {guide.fields.map((field) => {
+            const state =
+              getFieldState(field);
+
+            return (
+              <span
+                key={field}
+                className={`assistField ${state} ${
+                  guide.priority === field
+                    ? "priority"
+                    : ""
+                }`}
+              >
+                {state === "matched" && (
+                  <i>✓</i>
+                )}
+
+                {state === "provided" && (
+                  <i>•</i>
+                )}
+
+                {guide.priority === field &&
+                  state === "idle" && (
+                    <i>★</i>
+                  )}
+
+                {field}
+              </span>
+            );
+          })}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -268,22 +454,29 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const [activity, setActivity] = useState("");
 
-  const [voiceConnected, setVoiceConnected] = useState(false);
-  const [voiceStatus, setVoiceStatus] = useState("Kapalı");
-  const [voiceError, setVoiceError] = useState("");
+  const [voiceConnected, setVoiceConnected] =
+    useState(false);
 
-  const [activePanel, setActivePanel] = useState(null);
+  const [voiceStatus, setVoiceStatus] =
+    useState("Kapalı");
 
-  const [uploading, setUploading] = useState(false);
-  const [uploadedFiles, setUploadedFiles] = useState([]);
+  const [voiceError, setVoiceError] =
+    useState("");
 
-  const [customerWave, setCustomerWave] = useState(
-    Array(18).fill(7)
-  );
+  const [activePanel, setActivePanel] =
+    useState(null);
 
-  const [talhaWave, setTalhaWave] = useState(
-    Array(18).fill(7)
-  );
+  const [uploading, setUploading] =
+    useState(false);
+
+  const [uploadedFiles, setUploadedFiles] =
+    useState([]);
+
+  const [customerWave, setCustomerWave] =
+    useState(Array(18).fill(7));
+
+  const [talhaWave, setTalhaWave] =
+    useState(Array(18).fill(7));
 
   const conversationRef = useRef([]);
   const sessionRef = useRef({});
@@ -307,8 +500,13 @@ export default function Home() {
     time: 0,
   });
 
-  const processedItemsRef = useRef(new Set());
-  const userItemMapRef = useRef(new Map());
+  const processedItemsRef = useRef(
+    new Set()
+  );
+
+  const userItemMapRef = useRef(
+    new Map()
+  );
 
   const currentSpeechRef = useRef({
     messageId: null,
@@ -318,16 +516,21 @@ export default function Home() {
     saved: false,
   });
 
-  const localMeterCleanupRef = useRef(null);
-  const remoteMeterCleanupRef = useRef(null);
+  const localMeterCleanupRef =
+    useRef(null);
+
+  const remoteMeterCleanupRef =
+    useRef(null);
 
   function syncSession(next) {
     const value =
-      next && typeof next === "object"
+      next &&
+      typeof next === "object"
         ? next
         : {};
 
     sessionRef.current = value;
+
     setSession(value);
   }
 
@@ -340,7 +543,9 @@ export default function Home() {
 
   function togglePanel(name) {
     setActivePanel((current) =>
-      current === name ? null : name
+      current === name
+        ? null
+        : name
     );
   }
 
@@ -357,9 +562,11 @@ export default function Home() {
     } = options;
 
     setMessages((current) => {
-      const index = current.findIndex(
-        (item) => item.id === id
-      );
+      const index =
+        current.findIndex(
+          (item) =>
+            item.id === id
+        );
 
       if (index === -1) {
         return [
@@ -378,12 +585,18 @@ export default function Home() {
 
       next[index] = {
         ...next[index],
+
         role,
+
         content: append
           ? `${next[index].content || ""}${content}`
           : content,
+
         live,
-        files: files || next[index].files,
+
+        files:
+          files ||
+          next[index].files,
       };
 
       return next;
@@ -403,10 +616,17 @@ export default function Home() {
     );
   }
 
-  function setMicrophoneEnabled(enabled) {
-    if (!microphoneRef.current) return;
+  function setMicrophoneEnabled(
+    enabled
+  ) {
+    if (
+      !microphoneRef.current
+    ) {
+      return;
+    }
 
-    for (const track of microphoneRef.current.getAudioTracks()) {
+    for (const track of
+      microphoneRef.current.getAudioTracks()) {
       track.enabled = enabled;
     }
   }
@@ -424,27 +644,42 @@ export default function Home() {
 
   async function bootstrap() {
     try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+      const response =
+        await fetch(
+          "/api/chat",
+          {
+            method: "POST",
 
-        body: JSON.stringify({
-          bootstrap: true,
-          clientContext: getClientContext("chat"),
-        }),
-      });
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
 
-      const data = await response.json();
+            body: JSON.stringify({
+              bootstrap: true,
+
+              clientContext:
+                getClientContext(
+                  "chat"
+                ),
+            }),
+          }
+        );
+
+      const data =
+        await response.json();
 
       if (!response.ok) {
         throw new Error(
-          data.error || "Karşılama oluşturulamadı."
+          data.error ||
+            "Karşılama oluşturulamadı."
         );
       }
 
-      const greeting = String(data.message || "").trim();
+      const greeting =
+        String(
+          data.message || ""
+        ).trim();
 
       conversationRef.current = [
         {
@@ -453,8 +688,14 @@ export default function Home() {
         },
       ];
 
-      syncSession(data.session || {});
-      syncUi(data.ui || {});
+      syncSession(
+        data.session || {}
+      );
+
+      syncUi(
+        data.ui || {}
+      );
+
       setMeta(data);
 
       upsertMessage(
@@ -492,17 +733,34 @@ export default function Home() {
   }, []);
 
   function chooseActivity(value) {
-    const lower = String(value).toLocaleLowerCase("tr-TR");
+    const lower =
+      String(
+        value
+      ).toLocaleLowerCase(
+        "tr-TR"
+      );
 
-    if (/ödeme|odeme/.test(lower)) {
+    if (
+      /ödeme|odeme/.test(
+        lower
+      )
+    ) {
       return "Ödeme bilgisi kontrol ediliyor";
     }
 
-    if (/evrak|belge|doküman|dokuman/.test(lower)) {
+    if (
+      /evrak|belge|doküman|dokuman/.test(
+        lower
+      )
+    ) {
       return "Belge bilgisi kontrol ediliyor";
     }
 
-    if (/dosya|hasar|plaka|poliçe|police/.test(lower)) {
+    if (
+      /dosya|hasar|plaka|poliçe|police/.test(
+        lower
+      )
+    ) {
       return "Dosya bilgisi kontrol ediliyor";
     }
 
@@ -513,9 +771,14 @@ export default function Home() {
     content,
     options = {}
   ) {
-    const value = String(content || "").trim();
+    const value =
+      String(
+        content || ""
+      ).trim();
 
-    if (!value) return;
+    if (!value) {
+      return;
+    }
 
     const {
       source = "chat",
@@ -523,16 +786,23 @@ export default function Home() {
       files = null,
     } = options;
 
-    const normalized = value
-      .toLocaleLowerCase("tr-TR")
-      .replace(/\s+/g, " ")
-      .trim();
+    const normalized =
+      value
+        .toLocaleLowerCase(
+          "tr-TR"
+        )
+        .replace(/\s+/g, " ")
+        .trim();
 
-    const now = Date.now();
+    const now =
+      Date.now();
 
     if (
-      lastTurnRef.current.key === normalized &&
-      now - lastTurnRef.current.time < 2200
+      lastTurnRef.current.key ===
+        normalized &&
+      now -
+        lastTurnRef.current.time <
+        2200
     ) {
       return;
     }
@@ -542,11 +812,14 @@ export default function Home() {
       time: now,
     };
 
-    if (busyRef.current) {
+    if (
+      busyRef.current
+    ) {
       return;
     }
 
     busyRef.current = true;
+
     setBusy(true);
 
     if (displayUser) {
@@ -554,7 +827,9 @@ export default function Home() {
         uid("user"),
         "user",
         value,
-        { files }
+        {
+          files,
+        }
       );
     }
 
@@ -575,51 +850,77 @@ export default function Home() {
       documentCards: [],
     }));
 
-    const activityTimer = setTimeout(() => {
-      setActivity(chooseActivity(value));
-    }, 350);
+    const activityTimer =
+      setTimeout(() => {
+        setActivity(
+          chooseActivity(value)
+        );
+      }, 350);
 
     try {
       const voiceActive =
         voiceConnectedRef.current ||
         source === "voice";
 
-      const response = await fetch("/api/chat", {
-        method: "POST",
+      const response =
+        await fetch(
+          "/api/chat",
+          {
+            method: "POST",
 
-        headers: {
-          "Content-Type": "application/json",
-        },
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
 
-        body: JSON.stringify({
-          messages: conversationRef.current,
-          session: sessionRef.current,
-          uploadedFiles: uploadedFilesRef.current,
+            body: JSON.stringify({
+              messages:
+                conversationRef.current,
 
-          clientContext: getClientContext(
-            voiceActive ? "voice" : "chat"
-          ),
-        }),
-      });
+              session:
+                sessionRef.current,
 
-      const data = await response.json();
+              uploadedFiles:
+                uploadedFilesRef.current,
+
+              clientContext:
+                getClientContext(
+                  voiceActive
+                    ? "voice"
+                    : "chat"
+                ),
+            }),
+          }
+        );
+
+      const data =
+        await response.json();
 
       if (!response.ok) {
         throw new Error(
-          data.error || "Yanıt alınamadı."
+          data.error ||
+            "Yanıt alınamadı."
         );
       }
 
-      syncSession(data.session || {});
+      syncSession(
+        data.session || {}
+      );
+
       syncUi(
         data.ui || {
-          quickActions: data.quickActions || [],
+          quickActions:
+            data.quickActions ||
+            [],
         }
       );
 
       setMeta(data);
 
-      const answer = String(data.message || "").trim();
+      const answer =
+        String(
+          data.message || ""
+        ).trim();
 
       conversationRef.current = [
         ...conversationRef.current,
@@ -629,8 +930,12 @@ export default function Home() {
         },
       ];
 
-      if (voiceConnectedRef.current) {
-        speakRealtime(answer);
+      if (
+        voiceConnectedRef.current
+      ) {
+        speakRealtime(
+          answer
+        );
       } else {
         upsertMessage(
           uid("assistant"),
@@ -647,23 +952,33 @@ export default function Home() {
         `Şu anda işlemi tamamlayamadım. ${error.message}`
       );
     } finally {
-      clearTimeout(activityTimer);
+      clearTimeout(
+        activityTimer
+      );
 
       setActivity("");
 
-      busyRef.current = false;
+      busyRef.current =
+        false;
+
       setBusy(false);
     }
   }
 
-  async function handleFiles(event) {
-    const files = Array.from(
-      event.target.files || []
-    );
+  async function handleFiles(
+    event
+  ) {
+    const files =
+      Array.from(
+        event.target.files ||
+          []
+      );
 
     event.target.value = "";
 
-    if (!files.length) return;
+    if (!files.length) {
+      return;
+    }
 
     setUploading(true);
 
@@ -671,25 +986,40 @@ export default function Home() {
 
     try {
       for (const file of files) {
-        const form = new FormData();
-        form.append("file", file);
+        const form =
+          new FormData();
 
-        const response = await fetch("/api/uploads", {
-          method: "POST",
-          body: form,
-        });
+        form.append(
+          "file",
+          file
+        );
 
-        const data = await response.json();
+        const response =
+          await fetch(
+            "/api/uploads",
+            {
+              method: "POST",
+              body: form,
+            }
+          );
+
+        const data =
+          await response.json();
 
         if (!response.ok) {
           throw new Error(
-            data.error || `${file.name} yüklenemedi.`
+            data.error ||
+              `${file.name} yüklenemedi.`
           );
         }
 
         received.push({
           ...data.file,
-          localUrl: URL.createObjectURL(file),
+
+          localUrl:
+            URL.createObjectURL(
+              file
+            ),
         });
       }
 
@@ -698,12 +1028,20 @@ export default function Home() {
         ...received,
       ];
 
-      uploadedFilesRef.current = nextFiles;
-      setUploadedFiles(nextFiles);
+      uploadedFilesRef.current =
+        nextFiles;
 
-      const names = received
-        .map((item) => item.name)
-        .join(", ");
+      setUploadedFiles(
+        nextFiles
+      );
+
+      const names =
+        received
+          .map(
+            (item) =>
+              item.name
+          )
+          .join(", ");
 
       const message =
         received.length === 1
@@ -719,10 +1057,13 @@ export default function Home() {
         }
       );
 
-      await submitTurn(message, {
-        displayUser: false,
-        files: received,
-      });
+      await submitTurn(
+        message,
+        {
+          displayUser: false,
+          files: received,
+        }
+      );
     } catch (error) {
       upsertMessage(
         uid("error"),
@@ -734,7 +1075,10 @@ export default function Home() {
     }
   }
 
-  function attachMeter(stream, setter) {
+  function attachMeter(
+    stream,
+    setter
+  ) {
     const AudioContext =
       window.AudioContext ||
       window.webkitAudioContext;
@@ -743,51 +1087,76 @@ export default function Home() {
       return () => {};
     }
 
-    const context = new AudioContext();
+    const context =
+      new AudioContext();
 
     const source =
-      context.createMediaStreamSource(stream);
+      context.createMediaStreamSource(
+        stream
+      );
 
     const analyser =
       context.createAnalyser();
 
     analyser.fftSize = 128;
-    analyser.smoothingTimeConstant = 0.7;
 
-    source.connect(analyser);
+    analyser.smoothingTimeConstant =
+      0.7;
+
+    source.connect(
+      analyser
+    );
 
     const data =
-      new Uint8Array(analyser.frequencyBinCount);
+      new Uint8Array(
+        analyser.frequencyBinCount
+      );
 
-    const interval = setInterval(() => {
-      analyser.getByteFrequencyData(data);
-
-      const bars = Array.from({
-        length: 18,
-      }).map((_, index) => {
-        const position = Math.min(
-          data.length - 1,
-          Math.floor(
-            (index / 18) * data.length
-          )
+    const interval =
+      setInterval(() => {
+        analyser.getByteFrequencyData(
+          data
         );
 
-        return Math.min(
-          100,
-          Math.max(
-            7,
-            Math.round(
-              ((data[position] || 0) / 255) * 100
-            )
-          )
-        );
-      });
+        const bars =
+          Array.from({
+            length: 18,
+          }).map(
+            (_, index) => {
+              const position =
+                Math.min(
+                  data.length - 1,
 
-      setter(bars);
-    }, 55);
+                  Math.floor(
+                    (index / 18) *
+                      data.length
+                  )
+                );
+
+              return Math.min(
+                100,
+
+                Math.max(
+                  7,
+
+                  Math.round(
+                    ((data[position] ||
+                      0) /
+                      255) *
+                      100
+                  )
+                )
+              );
+            }
+          );
+
+        setter(bars);
+      }, 55);
 
     return () => {
-      clearInterval(interval);
+      clearInterval(
+        interval
+      );
 
       try {
         source.disconnect();
@@ -797,20 +1166,30 @@ export default function Home() {
         analyser.disconnect();
       } catch {}
 
-      context.close().catch(() => {});
+      context
+        .close()
+        .catch(() => {});
 
-      setter(Array(18).fill(7));
+      setter(
+        Array(18).fill(7)
+      );
     };
   }
 
   function cancelRealtimeResponse() {
-    if (!responseActiveRef.current) {
+    if (
+      !responseActiveRef.current
+    ) {
       return;
     }
 
-    const dc = dcRef.current;
+    const dc =
+      dcRef.current;
 
-    if (!dc || dc.readyState !== "open") {
+    if (
+      !dc ||
+      dc.readyState !== "open"
+    ) {
       return;
     }
 
@@ -822,20 +1201,18 @@ export default function Home() {
       );
     } catch {}
 
-    responseActiveRef.current = false;
+    responseActiveRef.current =
+      false;
   }
 
   function prepareAssistantAudio() {
-    /*
-     * Talha konuşurken mikrofonu geçici kapatıyoruz.
-     *
-     * Böylece hoparlörden çıkan Talha sesi tekrar
-     * mikrofon tarafından kullanıcı konuşması gibi
-     * algılanıp kendi yanıtını kesmiyor.
-     */
-    setMicrophoneEnabled(false);
+    setMicrophoneEnabled(
+      false
+    );
 
-    if (remoteAudioRef.current) {
+    if (
+      remoteAudioRef.current
+    ) {
       remoteAudioRef.current
         .play()
         .catch(() => {});
@@ -844,17 +1221,30 @@ export default function Home() {
 
   function finishAssistantAudio() {
     setTimeout(() => {
-      if (voiceConnectedRef.current) {
-        setMicrophoneEnabled(true);
-        setVoiceStatus("Dinliyorum");
+      if (
+        voiceConnectedRef.current
+      ) {
+        setMicrophoneEnabled(
+          true
+        );
+
+        setVoiceStatus(
+          "Dinliyorum"
+        );
       }
     }, 120);
   }
 
-  function speakRealtime(content) {
-    const clean = String(content || "").trim();
+  function speakRealtime(
+    content
+  ) {
+    const clean =
+      String(
+        content || ""
+      ).trim();
 
-    const dc = dcRef.current;
+    const dc =
+      dcRef.current;
 
     if (
       !clean ||
@@ -870,14 +1260,18 @@ export default function Home() {
       return;
     }
 
-    if (responseActiveRef.current) {
+    if (
+      responseActiveRef.current
+    ) {
       cancelRealtimeResponse();
     }
 
     prepareAssistantAudio();
 
     const messageId =
-      uid("assistant-live");
+      uid(
+        "assistant-live"
+      );
 
     currentSpeechRef.current = {
       messageId,
@@ -896,14 +1290,18 @@ export default function Home() {
       }
     );
 
-    setVoiceStatus("Talha konuşuyor");
+    setVoiceStatus(
+      "Talha konuşuyor"
+    );
 
     dc.send(
       JSON.stringify({
         type: "response.create",
 
         response: {
-          output_modalities: ["audio"],
+          output_modalities: [
+            "audio",
+          ],
 
           instructions: `
 Aşağıdaki cevabı Türkçe seslendir.
@@ -945,21 +1343,31 @@ ${clean}
     );
   }
 
-  function realtimeSmallTalk(userText) {
-    const dc = dcRef.current;
+  function realtimeSmallTalk(
+    userText
+  ) {
+    const dc =
+      dcRef.current;
 
-    if (!dc || dc.readyState !== "open") {
+    if (
+      !dc ||
+      dc.readyState !== "open"
+    ) {
       return false;
     }
 
-    if (responseActiveRef.current) {
+    if (
+      responseActiveRef.current
+    ) {
       cancelRealtimeResponse();
     }
 
     prepareAssistantAudio();
 
     const messageId =
-      uid("assistant-live");
+      uid(
+        "assistant-live"
+      );
 
     currentSpeechRef.current = {
       messageId,
@@ -978,14 +1386,18 @@ ${clean}
       }
     );
 
-    setVoiceStatus("Talha konuşuyor");
+    setVoiceStatus(
+      "Talha konuşuyor"
+    );
 
     dc.send(
       JSON.stringify({
         type: "response.create",
 
         response: {
-          output_modalities: ["audio"],
+          output_modalities: [
+            "audio",
+          ],
 
           instructions: `
 Kullanıcı şunu söyledi:
@@ -1030,23 +1442,36 @@ Hemen cevap ver.
     return true;
   }
 
-  function handleRealtimeEvent(event) {
-    switch (event.type) {
+  function handleRealtimeEvent(
+    event
+  ) {
+    switch (
+      event.type
+    ) {
       case "input_audio_buffer.speech_started": {
-        setVoiceStatus("Dinliyorum");
+        setVoiceStatus(
+          "Dinliyorum"
+        );
+
         break;
       }
 
       case "input_audio_buffer.speech_stopped": {
-        setVoiceStatus("Anlıyorum");
+        setVoiceStatus(
+          "Anlıyorum"
+        );
+
         break;
       }
 
       case "conversation.item.input_audio_transcription.delta": {
-        const itemId = event.item_id;
+        const itemId =
+          event.item_id;
 
         let messageId =
-          userItemMapRef.current.get(itemId);
+          userItemMapRef.current.get(
+            itemId
+          );
 
         if (!messageId) {
           messageId =
@@ -1083,18 +1508,23 @@ Hemen cevap ver.
       }
 
       case "conversation.item.input_audio_transcription.completed": {
-        const itemId = event.item_id;
+        const itemId =
+          event.item_id;
 
-        const finalText = String(
-          event.transcript || ""
-        ).trim();
+        const finalText =
+          String(
+            event.transcript ||
+              ""
+          ).trim();
 
         if (!finalText) {
           break;
         }
 
         const messageId =
-          userItemMapRef.current.get(itemId) ||
+          userItemMapRef.current.get(
+            itemId
+          ) ||
           `user-live-${itemId}`;
 
         upsertMessage(
@@ -1106,26 +1536,39 @@ Hemen cevap ver.
           }
         );
 
-        removeLiveFlag(messageId);
+        removeLiveFlag(
+          messageId
+        );
 
         if (
-          processedItemsRef.current.has(itemId)
+          processedItemsRef.current.has(
+            itemId
+          )
         ) {
           break;
         }
 
-        processedItemsRef.current.add(itemId);
+        processedItemsRef.current.add(
+          itemId
+        );
 
-        if (isRealtimeSmallTalk(finalText)) {
+        if (
+          isRealtimeSmallTalk(
+            finalText
+          )
+        ) {
           conversationRef.current = [
             ...conversationRef.current,
             {
               role: "user",
-              content: finalText,
+              content:
+                finalText,
             },
           ];
 
-          realtimeSmallTalk(finalText);
+          realtimeSmallTalk(
+            finalText
+          );
         } else {
           submitTurn(
             finalText,
@@ -1140,9 +1583,12 @@ Hemen cevap ver.
       }
 
       case "response.created": {
-        responseActiveRef.current = true;
+        responseActiveRef.current =
+          true;
 
-        setVoiceStatus("Talha konuşuyor");
+        setVoiceStatus(
+          "Talha konuşuyor"
+        );
 
         remoteAudioRef.current
           ?.play()
@@ -1162,7 +1608,8 @@ Hemen cevap ver.
           break;
         }
 
-        current.transcript += event.delta;
+        current.transcript +=
+          event.delta;
 
         upsertMessage(
           current.messageId,
@@ -1181,16 +1628,19 @@ Hemen cevap ver.
         const current =
           currentSpeechRef.current;
 
-        if (!current.messageId) {
+        if (
+          !current.messageId
+        ) {
           break;
         }
 
-        const finalText = String(
-          event.transcript ||
-            current.transcript ||
-            current.target ||
-            ""
-        ).trim();
+        const finalText =
+          String(
+            event.transcript ||
+              current.transcript ||
+              current.target ||
+              ""
+          ).trim();
 
         if (finalText) {
           upsertMessage(
@@ -1203,14 +1653,18 @@ Hemen cevap ver.
           );
 
           if (
-            current.mode === "smalltalk" &&
+            current.mode ===
+              "smalltalk" &&
             !current.saved
           ) {
             conversationRef.current = [
               ...conversationRef.current,
               {
-                role: "assistant",
-                content: finalText,
+                role:
+                  "assistant",
+
+                content:
+                  finalText,
               },
             ];
 
@@ -1222,7 +1676,8 @@ Hemen cevap ver.
       }
 
       case "response.done": {
-        responseActiveRef.current = false;
+        responseActiveRef.current =
+          false;
 
         const current =
           currentSpeechRef.current;
@@ -1239,7 +1694,9 @@ Hemen cevap ver.
           );
         }
 
-        if (current.messageId) {
+        if (
+          current.messageId
+        ) {
           removeLiveFlag(
             current.messageId
           );
@@ -1264,17 +1721,24 @@ Hemen cevap ver.
           event
         );
 
-        responseActiveRef.current = false;
+        responseActiveRef.current =
+          false;
 
-        setMicrophoneEnabled(true);
+        setMicrophoneEnabled(
+          true
+        );
 
         setVoiceError(
           event.error?.message ||
             "Ses bağlantısında hata oluştu."
         );
 
-        if (voiceConnectedRef.current) {
-          setVoiceStatus("Dinliyorum");
+        if (
+          voiceConnectedRef.current
+        ) {
+          setVoiceStatus(
+            "Dinliyorum"
+          );
         }
 
         break;
@@ -1286,12 +1750,17 @@ Hemen cevap ver.
   }
 
   async function startVoice() {
-    if (voiceConnectedRef.current) {
+    if (
+      voiceConnectedRef.current
+    ) {
       return;
     }
 
     setVoiceError("");
-    setVoiceStatus("Bağlanıyor");
+
+    setVoiceStatus(
+      "Bağlanıyor"
+    );
 
     processedItemsRef.current =
       new Set();
@@ -1303,17 +1772,20 @@ Hemen cevap ver.
       false;
 
     try {
-      const tokenResponse = await fetch(
-        "/api/realtime/session",
-        {
-          method: "POST",
-        }
-      );
+      const tokenResponse =
+        await fetch(
+          "/api/realtime/session",
+          {
+            method: "POST",
+          }
+        );
 
       const tokenData =
         await tokenResponse.json();
 
-      if (!tokenResponse.ok) {
+      if (
+        !tokenResponse.ok
+      ) {
         throw new Error(
           tokenData.error ||
             "Ses oturumu oluşturulamadı."
@@ -1330,15 +1802,23 @@ Hemen cevap ver.
       }
 
       const stream =
-        await navigator.mediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-          },
-        });
+        await navigator.mediaDevices.getUserMedia(
+          {
+            audio: {
+              echoCancellation:
+                true,
 
-      microphoneRef.current = stream;
+              noiseSuppression:
+                true,
+
+              autoGainControl:
+                true,
+            },
+          }
+        );
+
+      microphoneRef.current =
+        stream;
 
       localMeterCleanupRef.current =
         attachMeter(
@@ -1365,35 +1845,40 @@ Hemen cevap ver.
       audio.muted = false;
       audio.volume = 1;
 
-      pc.ontrack = async (event) => {
-        const remoteStream =
-          event.streams?.[0];
+      pc.ontrack =
+        async (event) => {
+          const remoteStream =
+            event.streams?.[0];
 
-        if (!remoteStream) {
-          return;
-        }
+          if (
+            !remoteStream
+          ) {
+            return;
+          }
 
-        audio.srcObject =
-          remoteStream;
+          audio.srcObject =
+            remoteStream;
 
-        remoteMeterCleanupRef.current?.();
+          remoteMeterCleanupRef.current?.();
 
-        remoteMeterCleanupRef.current =
-          attachMeter(
-            remoteStream,
-            setTalhaWave
-          );
+          remoteMeterCleanupRef.current =
+            attachMeter(
+              remoteStream,
+              setTalhaWave
+            );
 
-        try {
-          await audio.play();
-        } catch (error) {
-          console.error(error);
+          try {
+            await audio.play();
+          } catch (error) {
+            console.error(
+              error
+            );
 
-          setVoiceError(
-            "Talha'nın sesi oynatılamadı."
-          );
-        }
-      };
+            setVoiceError(
+              "Talha'nın sesi oynatılamadı."
+            );
+          }
+        };
 
       const micTrack =
         stream.getAudioTracks()[0];
@@ -1421,10 +1906,14 @@ Hemen cevap ver.
         (message) => {
           try {
             handleRealtimeEvent(
-              JSON.parse(message.data)
+              JSON.parse(
+                message.data
+              )
             );
           } catch (error) {
-            console.error(error);
+            console.error(
+              error
+            );
           }
         }
       );
@@ -1450,11 +1939,14 @@ Hemen cevap ver.
                 "application/sdp",
             },
 
-            body: offer.sdp,
+            body:
+              offer.sdp,
           }
         );
 
-      if (!sdpResponse.ok) {
+      if (
+        !sdpResponse.ok
+      ) {
         throw new Error(
           await sdpResponse.text()
         );
@@ -1463,21 +1955,28 @@ Hemen cevap ver.
       const answer =
         await sdpResponse.text();
 
-      await pc.setRemoteDescription({
-        type: "answer",
-        sdp: answer,
-      });
+      await pc.setRemoteDescription(
+        {
+          type: "answer",
+          sdp: answer,
+        }
+      );
 
-      await waitForDataChannel(dc);
+      await waitForDataChannel(
+        dc
+      );
 
-      voiceConnectedRef.current = true;
+      voiceConnectedRef.current =
+        true;
 
-      setVoiceConnected(true);
-      setVoiceStatus("Dinliyorum");
+      setVoiceConnected(
+        true
+      );
 
-      /*
-       * Çok kısa sesli başlangıç.
-       */
+      setVoiceStatus(
+        "Dinliyorum"
+      );
+
       speakRealtime(
         "Sizi dinliyorum."
       );
@@ -1494,7 +1993,8 @@ Hemen cevap ver.
   }
 
   function closeVoice() {
-    voiceConnectedRef.current = false;
+    voiceConnectedRef.current =
+      false;
 
     cancelRealtimeResponse();
 
@@ -1514,31 +2014,49 @@ Hemen cevap ver.
       pcRef.current = null;
     }
 
-    if (microphoneRef.current) {
-      for (const track of microphoneRef.current.getTracks()) {
+    if (
+      microphoneRef.current
+    ) {
+      for (const track of
+        microphoneRef.current.getTracks()) {
         track.stop();
       }
 
-      microphoneRef.current = null;
+      microphoneRef.current =
+        null;
     }
 
-    if (remoteAudioRef.current) {
+    if (
+      remoteAudioRef.current
+    ) {
       try {
         remoteAudioRef.current.pause();
-        remoteAudioRef.current.srcObject = null;
+
+        remoteAudioRef.current.srcObject =
+          null;
       } catch {}
     }
 
     localMeterCleanupRef.current?.();
+
     remoteMeterCleanupRef.current?.();
 
-    localMeterCleanupRef.current = null;
-    remoteMeterCleanupRef.current = null;
+    localMeterCleanupRef.current =
+      null;
 
-    responseActiveRef.current = false;
+    remoteMeterCleanupRef.current =
+      null;
 
-    setVoiceConnected(false);
-    setVoiceStatus("Kapalı");
+    responseActiveRef.current =
+      false;
+
+    setVoiceConnected(
+      false
+    );
+
+    setVoiceStatus(
+      "Kapalı"
+    );
 
     setCustomerWave(
       Array(18).fill(7)
@@ -1567,7 +2085,8 @@ Hemen cevap ver.
       time: 0,
     };
 
-    busyRef.current = false;
+    busyRef.current =
+      false;
 
     setMessages([]);
     setSession({});
@@ -1578,7 +2097,9 @@ Hemen cevap ver.
     setVoiceError("");
     setActivePanel(null);
 
-    syncUi(EMPTY_UI);
+    syncUi(
+      EMPTY_UI
+    );
 
     await bootstrap();
   }
@@ -1587,22 +2108,27 @@ Hemen cevap ver.
     session?.verification || {};
 
   const evidence =
-    verification.evidenceCandidates || {};
+    verification.evidenceCandidates ||
+    {};
 
   const verificationStatus =
-    verification.status || "UNVERIFIED";
+    verification.status ||
+    "UNVERIFIED";
 
   const matchedCount =
-    verification.matchedCount || 0;
+    verification.matchedCount ||
+    0;
 
   const activeRole =
     session?.role || null;
 
   const activeClaim =
-    session?.activeClaimNo || null;
+    session?.activeClaimNo ||
+    null;
 
   const candidateClaims =
-    session?.candidateClaims || [];
+    session?.candidateClaims ||
+    [];
 
   const task =
     meta?.task ||
@@ -1610,13 +2136,17 @@ Hemen cevap ver.
     {};
 
   const intents =
-    meta?.plan?.intents || [];
+    meta?.plan?.intents ||
+    [];
 
   const toolTrace =
-    meta?.toolTrace || [];
+    meta?.toolTrace ||
+    [];
 
   const guide =
-    VERIFICATION_GUIDES[activeRole] || {
+    VERIFICATION_GUIDES[
+      activeRole
+    ] || {
       priority: null,
 
       fields: [
@@ -1630,10 +2160,12 @@ Hemen cevap ver.
     };
 
   const matchedFields =
-    ui?.verification?.matchedFields || [];
+    ui?.verification?.matchedFields ||
+    [];
 
   const rejectedCandidates =
-    ui?.verification?.rejectedCandidates || [];
+    ui?.verification?.rejectedCandidates ||
+    [];
 
   return (
     <main className="workspace">
@@ -1655,6 +2187,7 @@ Hemen cevap ver.
 
             <div>
               <b>Talha AI</b>
+
               <span>
                 TEST TEST TEST AI ASSISTANT
               </span>
@@ -1664,7 +2197,9 @@ Hemen cevap ver.
           <div className="topActions">
             <div
               className={`connectionStatus ${
-                voiceConnected ? "on" : ""
+                voiceConnected
+                  ? "on"
+                  : ""
               }`}
             >
               <i />
@@ -1676,7 +2211,9 @@ Hemen cevap ver.
 
             <button
               className={`voiceButton ${
-                voiceConnected ? "active" : ""
+                voiceConnected
+                  ? "active"
+                  : ""
               }`}
               onClick={
                 voiceConnected
@@ -1708,7 +2245,8 @@ Hemen cevap ver.
             title="SİZ"
             subtitle={
               voiceConnected
-                ? voiceStatus === "Dinliyorum"
+                ? voiceStatus ===
+                  "Dinliyorum"
                   ? "Sizi duyuyorum"
                   : "Mikrofon açık"
                 : "Ses kapalı"
@@ -1716,21 +2254,26 @@ Hemen cevap ver.
             values={customerWave}
             active={
               voiceConnected &&
-              voiceStatus === "Dinliyorum"
+              voiceStatus ===
+                "Dinliyorum"
             }
             type="customer"
           />
 
           <div
             className={`voiceCore ${
-              voiceConnected ? "connected" : ""
+              voiceConnected
+                ? "connected"
+                : ""
             } ${
-              voiceStatus === "Talha konuşuyor"
+              voiceStatus ===
+              "Talha konuşuyor"
                 ? "speaking"
                 : ""
             }`}
           >
             <div>T</div>
+
             <span>
               {voiceConnected
                 ? voiceStatus
@@ -1741,7 +2284,8 @@ Hemen cevap ver.
           <Waveform
             title="TALHA"
             subtitle={
-              voiceStatus === "Talha konuşuyor"
+              voiceStatus ===
+              "Talha konuşuyor"
                 ? "Konuşuyor"
                 : voiceConnected
                 ? "Hazır"
@@ -1750,7 +2294,8 @@ Hemen cevap ver.
             values={talhaWave}
             active={
               voiceConnected &&
-              voiceStatus === "Talha konuşuyor"
+              voiceStatus ===
+                "Talha konuşuyor"
             }
             type="talha"
           />
@@ -1761,10 +2306,13 @@ Hemen cevap ver.
         <section className="contextMenu">
           <PanelButton
             active={
-              activePanel === "verification"
+              activePanel ===
+              "verification"
             }
             onClick={() =>
-              togglePanel("verification")
+              togglePanel(
+                "verification"
+              )
             }
             icon="✓"
             label="KVKK / Doğrulama"
@@ -1773,10 +2321,13 @@ Hemen cevap ver.
 
           <PanelButton
             active={
-              activePanel === "claim"
+              activePanel ===
+              "claim"
             }
             onClick={() =>
-              togglePanel("claim")
+              togglePanel(
+                "claim"
+              )
             }
             icon="#"
             label="Dosya"
@@ -1790,10 +2341,13 @@ Hemen cevap ver.
 
           <PanelButton
             active={
-              activePanel === "operations"
+              activePanel ===
+              "operations"
             }
             onClick={() =>
-              togglePanel("operations")
+              togglePanel(
+                "operations"
+              )
             }
             icon="⌘"
             label="Operasyon"
@@ -1806,15 +2360,19 @@ Hemen cevap ver.
 
           <PanelButton
             active={
-              activePanel === "files"
+              activePanel ===
+              "files"
             }
             onClick={() =>
-              togglePanel("files")
+              togglePanel(
+                "files"
+              )
             }
             icon="+"
             label="Dosyalar"
             badge={
-              uploadedFiles.length || ""
+              uploadedFiles.length ||
+              ""
             }
           />
         </section>
@@ -1823,7 +2381,8 @@ Hemen cevap ver.
 
         {activePanel && (
           <section className="contextDrawer">
-            {activePanel === "verification" && (
+            {activePanel ===
+              "verification" && (
               <div className="verificationPanel">
                 <div className="drawerHeader">
                   <div>
@@ -1832,7 +2391,8 @@ Hemen cevap ver.
                     </span>
 
                     <h3>
-                      {verificationStatus === "VERIFIED"
+                      {verificationStatus ===
+                      "VERIFIED"
                         ? "Doğrulama tamamlandı"
                         : "2 bağımsız bilgi eşleşmesi gerekli"}
                     </h3>
@@ -1841,7 +2401,8 @@ Hemen cevap ver.
                   <div
                     className={`verificationState ${verificationStatus.toLowerCase()}`}
                   >
-                    {verificationStatus === "VERIFIED"
+                    {verificationStatus ===
+                    "VERIFIED"
                       ? "✓ DOĞRULANDI"
                       : `${matchedCount} / 2`}
                   </div>
@@ -1849,35 +2410,47 @@ Hemen cevap ver.
 
                 <div className="verificationGrid">
                   <div className="infoCard">
-                    <span>Arayan Rolü</span>
+                    <span>
+                      Arayan Rolü
+                    </span>
 
                     <b>
-                      {ROLE_LABELS[activeRole] ||
+                      {ROLE_LABELS[
+                        activeRole
+                      ] ||
                         "Henüz belirlenmedi"}
                     </b>
 
                     <small>
-                      Rol, paylaşılabilecek bilgi
-                      kapsamını belirler.
+                      Rol,
+                      paylaşılabilecek
+                      bilgi kapsamını
+                      belirler.
                     </small>
                   </div>
 
                   <div className="infoCard">
-                    <span>Doğrulama Kuralı</span>
+                    <span>
+                      Doğrulama Kuralı
+                    </span>
 
                     <b>
-                      Herhangi 2 farklı bilgi
+                      Herhangi 2
+                      farklı bilgi
                     </b>
 
                     <small>
-                      İki farklı bilgi tipi aynı
-                      hasar dosyasıyla eşleşmelidir.
+                      İki farklı bilgi
+                      tipi aynı hasar
+                      dosyasıyla
+                      eşleşmelidir.
                     </small>
                   </div>
 
                   <div className="infoCard accent">
                     <span>
-                      Öncelikli Kolay Bilgi
+                      Öncelikli Kolay
+                      Bilgi
                     </span>
 
                     <b>
@@ -1896,13 +2469,18 @@ Hemen cevap ver.
                 <div className="verificationColumns">
                   <div>
                     <span className="subTitle">
-                      Kullanılabilecek bilgiler
+                      Kullanılabilecek
+                      bilgiler
                     </span>
 
                     <div className="fieldChips">
                       {guide.fields.map(
                         (field) => (
-                          <span key={field}>
+                          <span
+                            key={
+                              field
+                            }
+                          >
                             {field}
                           </span>
                         )
@@ -1912,19 +2490,28 @@ Hemen cevap ver.
 
                   <div>
                     <span className="subTitle">
-                      Görüşmede alınan bilgiler
+                      Görüşmede alınan
+                      bilgiler
                     </span>
 
-                    {Object.keys(evidence).length ===
-                    0 ? (
+                    {Object.keys(
+                      evidence
+                    ).length === 0 ? (
                       <div className="emptyMini">
-                        Henüz doğrulama bilgisi
+                        Henüz
+                        doğrulama
+                        bilgisi
                         alınmadı.
                       </div>
                     ) : (
                       <div className="evidenceGrid">
-                        {Object.entries(evidence).map(
-                          ([field, values]) => (
+                        {Object.entries(
+                          evidence
+                        ).map(
+                          ([
+                            field,
+                            values,
+                          ]) => (
                             <div
                               className={`evidenceItem ${
                                 matchedFields.includes(
@@ -1933,22 +2520,33 @@ Hemen cevap ver.
                                   ? "matched"
                                   : ""
                               }`}
-                              key={field}
+                              key={
+                                field
+                              }
                             >
                               <span>
-                                {FIELD_LABELS[field] ||
+                                {FIELD_LABELS[
+                                  field
+                                ] ||
                                   field}
                               </span>
 
                               <b>
-                                {(values || []).join(
+                                {(
+                                  values ||
+                                  []
+                                ).join(
                                   " · "
                                 )}
                               </b>
 
                               {matchedFields.includes(
                                 field
-                              ) && <i>✓</i>}
+                              ) && (
+                                <i>
+                                  ✓
+                                </i>
+                              )}
                             </div>
                           )
                         )}
@@ -1957,29 +2555,42 @@ Hemen cevap ver.
                   </div>
                 </div>
 
-                {rejectedCandidates.length > 0 && (
+                {rejectedCandidates.length >
+                  0 && (
                   <div className="rejectedInfo">
                     <b>
-                      Eşleşmeyen alternatifler
+                      Eşleşmeyen
+                      alternatifler
                     </b>
 
                     <span>
                       {rejectedCandidates
                         .map(
-                          (item) =>
+                          (
+                            item
+                          ) =>
                             `${
                               FIELD_LABELS[
-                                item.field
-                              ] || item.field
-                            }: ${item.value}`
+                                item
+                                  .field
+                              ] ||
+                              item.field
+                            }: ${
+                              item.value
+                            }`
                         )
-                        .join(" · ")}
+                        .join(
+                          " · "
+                        )}
                     </span>
 
                     <small>
-                      Bir adayın eşleşmemesi,
-                      başka iki bağımsız doğru
-                      bilgi eşleşmişse doğrulamayı
+                      Bir adayın
+                      eşleşmemesi,
+                      başka iki
+                      bağımsız doğru
+                      bilgi eşleşmişse
+                      doğrulamayı
                       bozmaz.
                     </small>
                   </div>
@@ -1987,7 +2598,8 @@ Hemen cevap ver.
               </div>
             )}
 
-            {activePanel === "claim" && (
+            {activePanel ===
+              "claim" && (
               <div>
                 <div className="drawerHeader">
                   <div>
@@ -2003,18 +2615,25 @@ Hemen cevap ver.
                   </div>
                 </div>
 
-                {candidateClaims.length === 0 ? (
+                {candidateClaims.length ===
+                0 ? (
                   <div className="emptyDrawer">
-                    Doğrulama tamamlandıktan sonra
-                    eşleşen hasar dosyaları burada
-                    görünür.
+                    Doğrulama
+                    tamamlandıktan
+                    sonra eşleşen
+                    hasar dosyaları
+                    burada görünür.
                   </div>
                 ) : (
                   <div className="miniClaimGrid">
                     {candidateClaims.map(
-                      (claim) => (
+                      (
+                        claim
+                      ) => (
                         <button
-                          key={claim.claimNo}
+                          key={
+                            claim.claimNo
+                          }
                           className={`miniClaim ${
                             activeClaim ===
                             claim.claimNo
@@ -2033,12 +2652,20 @@ Hemen cevap ver.
                           </span>
 
                           <b>
-                            #{claim.claimNo}
+                            #
+                            {
+                              claim.claimNo
+                            }
                           </b>
 
                           <small>
-                            {claim.branch} ·{" "}
-                            {claim.reason}
+                            {
+                              claim.branch
+                            }{" "}
+                            ·{" "}
+                            {
+                              claim.reason
+                            }
                           </small>
                         </button>
                       )
@@ -2048,16 +2675,19 @@ Hemen cevap ver.
               </div>
             )}
 
-            {activePanel === "operations" && (
+            {activePanel ===
+              "operations" && (
               <div>
                 <div className="drawerHeader">
                   <div>
                     <span className="drawerEyebrow">
-                      OPERASYON GÖRÜNÜMÜ
+                      OPERASYON
+                      GÖRÜNÜMÜ
                     </span>
 
                     <h3>
-                      AI Task Etiketleme
+                      AI Task
+                      Etiketleme
                     </h3>
                   </div>
 
@@ -2068,96 +2698,148 @@ Hemen cevap ver.
 
                 <div className="tagGrid">
                   <div>
-                    <span>Kayıt Türü</span>
+                    <span>
+                      Kayıt Türü
+                    </span>
+
                     <b>
-                      {task.kayitTuru || "—"}
+                      {task.kayitTuru ||
+                        "—"}
                     </b>
                   </div>
 
                   <div>
-                    <span>Ana Kategori</span>
+                    <span>
+                      Ana Kategori
+                    </span>
+
                     <b>
-                      {task.anaKategori || "—"}
+                      {task.anaKategori ||
+                        "—"}
                     </b>
                   </div>
 
                   <div>
-                    <span>Alt Kategori</span>
+                    <span>
+                      Alt Kategori
+                    </span>
+
                     <b>
-                      {task.altKategori || "—"}
+                      {task.altKategori ||
+                        "—"}
                     </b>
                   </div>
 
                   <div>
-                    <span>Alt Alt Kategori</span>
+                    <span>
+                      Alt Alt Kategori
+                    </span>
+
                     <b>
-                      {task.altAltKategori || "—"}
+                      {task.altAltKategori ||
+                        "—"}
                     </b>
                   </div>
 
                   <div>
-                    <span>Branş</span>
+                    <span>
+                      Branş
+                    </span>
+
                     <b>
-                      {task.brans || "—"}
+                      {task.brans ||
+                        "—"}
                     </b>
                   </div>
 
                   <div className="wide">
-                    <span>Konu</span>
+                    <span>
+                      Konu
+                    </span>
+
                     <b>
-                      {task.konu || "—"}
+                      {task.konu ||
+                        "—"}
                     </b>
                   </div>
                 </div>
 
                 <div className="opsDetail">
                   <div>
-                    <span>Dialogue Act</span>
+                    <span>
+                      Dialogue Act
+                    </span>
+
                     <b>
-                      {meta?.plan?.dialogueAct ||
+                      {meta?.plan
+                        ?.dialogueAct ||
                         "—"}
                     </b>
                   </div>
 
                   <div>
-                    <span>Intent</span>
+                    <span>
+                      Intent
+                    </span>
+
                     <b>
-                      {intents.join(", ") ||
+                      {intents.join(
+                        ", "
+                      ) || "—"}
+                    </b>
+                  </div>
+
+                  <div>
+                    <span>
+                      Rol
+                    </span>
+
+                    <b>
+                      {ROLE_LABELS[
+                        activeRole
+                      ] || "—"}
+                    </b>
+                  </div>
+
+                  <div>
+                    <span>
+                      Verification
+                    </span>
+
+                    <b>
+                      {
+                        verificationStatus
+                      }
+                    </b>
+                  </div>
+
+                  <div>
+                    <span>
+                      Aktif Dosya
+                    </span>
+
+                    <b>
+                      {activeClaim ||
                         "—"}
                     </b>
                   </div>
 
                   <div>
-                    <span>Rol</span>
+                    <span>
+                      Model
+                    </span>
+
                     <b>
-                      {ROLE_LABELS[activeRole] ||
+                      {meta?.model ||
                         "—"}
                     </b>
                   </div>
 
                   <div>
-                    <span>Verification</span>
-                    <b>
-                      {verificationStatus}
-                    </b>
-                  </div>
+                    <span>
+                      Service Tier
+                    </span>
 
-                  <div>
-                    <span>Aktif Dosya</span>
-                    <b>
-                      {activeClaim || "—"}
-                    </b>
-                  </div>
-
-                  <div>
-                    <span>Model</span>
-                    <b>
-                      {meta?.model || "—"}
-                    </b>
-                  </div>
-
-                  <div>
-                    <span>Service Tier</span>
                     <b>
                       {meta?.serviceTier ||
                         "—"}
@@ -2165,27 +2847,35 @@ Hemen cevap ver.
                   </div>
 
                   <div className="wide">
-                    <span>Tool Trace</span>
+                    <span>
+                      Tool Trace
+                    </span>
+
                     <b>
                       {toolTrace
                         .map(
-                          (item) =>
+                          (
+                            item
+                          ) =>
                             item.name
                         )
-                        .join(" → ") ||
-                        "—"}
+                        .join(
+                          " → "
+                        ) || "—"}
                     </b>
                   </div>
                 </div>
               </div>
             )}
 
-            {activePanel === "files" && (
+            {activePanel ===
+              "files" && (
               <div>
                 <div className="drawerHeader">
                   <div>
                     <span className="drawerEyebrow">
-                      DOSYA ALIŞVERİŞİ
+                      DOSYA
+                      ALIŞVERİŞİ
                     </span>
 
                     <h3>
@@ -2201,29 +2891,50 @@ Hemen cevap ver.
                       fileInputRef.current?.click()
                     }
                   >
-                    <strong>+</strong>
-                    <b>Müşteri dosya yüklesin</b>
+                    <strong>
+                      +
+                    </strong>
+
+                    <b>
+                      Müşteri dosya
+                      yüklesin
+                    </b>
+
                     <small>
-                      PDF, JPG, PNG veya DOCX
+                      PDF, JPG, PNG
+                      veya DOCX
                     </small>
                   </button>
 
                   <div className="fileListCompact">
-                    {uploadedFiles.length === 0 ? (
+                    {uploadedFiles.length ===
+                    0 ? (
                       <div className="emptyMini">
-                        Henüz dosya yüklenmedi.
+                        Henüz dosya
+                        yüklenmedi.
                       </div>
                     ) : (
                       uploadedFiles.map(
-                        (file) => (
+                        (
+                          file
+                        ) => (
                           <div
-                            key={file.id}
+                            key={
+                              file.id
+                            }
                             className="fileCompact"
                           >
-                            <span>↑</span>
+                            <span>
+                              ↑
+                            </span>
 
                             <div>
-                              <b>{file.name}</b>
+                              <b>
+                                {
+                                  file.name
+                                }
+                              </b>
+
                               <small>
                                 {formatBytes(
                                   file.size
@@ -2250,6 +2961,7 @@ Hemen cevap ver.
         {activity && (
           <div className="activityBar">
             <i />
+
             {activity}
           </div>
         )}
@@ -2257,89 +2969,113 @@ Hemen cevap ver.
         {/* CONVERSATION */}
 
         <section className="conversation">
-          {messages.map((message) => (
-            <div
-              key={message.id}
-              className={`message ${
-                message.role
-              }`}
-            >
-              {message.role === "assistant" && (
-                <div className="assistantAvatar">
-                  T
+          {messages.map(
+            (message) => (
+              <div
+                key={
+                  message.id
+                }
+                className={`message ${message.role}`}
+              >
+                {message.role ===
+                  "assistant" && (
+                  <div className="assistantAvatar">
+                    T
+                  </div>
+                )}
+
+                <div className="messageBody">
+                  <div className="messageName">
+                    {message.role ===
+                    "assistant"
+                      ? "Talha"
+                      : "Siz"}
+
+                    {message.live && (
+                      <span>
+                        CANLI
+                      </span>
+                    )}
+                  </div>
+
+                  <div
+                    className={`bubble ${
+                      message.live
+                        ? "live"
+                        : ""
+                    }`}
+                  >
+                    {message.content ||
+                      "…"}
+
+
+                    {message.live && (
+                      <i className="cursor" />
+                    )}
+                  </div>
+
+                  {Array.isArray(
+                    message.files
+                  ) &&
+                    message.files.length >
+                      0 && (
+                      <div className="messageFiles">
+                        {message.files.map(
+                          (
+                            file
+                          ) => (
+                            <a
+                              key={
+                                file.id
+                              }
+                              href={
+                                file.localUrl ||
+                                "#"
+                              }
+                              target="_blank"
+                              rel="noreferrer"
+                              className="messageFile"
+                            >
+                              <span>
+                                ↑
+                              </span>
+
+                              <div>
+                                <b>
+                                  {
+                                    file.name
+                                  }
+                                </b>
+
+                                <small>
+                                  {formatBytes(
+                                    file.size
+                                  )}
+                                </small>
+                              </div>
+                            </a>
+                          )
+                        )}
+                      </div>
+                    )}
                 </div>
-              )}
-
-              <div className="messageBody">
-                <div className="messageName">
-                  {message.role === "assistant"
-                    ? "Talha"
-                    : "Siz"}
-
-                  {message.live && (
-                    <span>CANLI</span>
-                  )}
-                </div>
-
-                <div
-                  className={`bubble ${
-                    message.live ? "live" : ""
-                  }`}
-                >
-                  {message.content || "…"}
-
-
-                  {message.live && (
-                    <i className="cursor" />
-                  )}
-                </div>
-
-                {Array.isArray(
-                  message.files
-                ) &&
-                  message.files.length > 0 && (
-                    <div className="messageFiles">
-                      {message.files.map(
-                        (file) => (
-                          <a
-                            key={file.id}
-                            href={
-                              file.localUrl ||
-                              "#"
-                            }
-                            target="_blank"
-                            rel="noreferrer"
-                            className="messageFile"
-                          >
-                            <span>↑</span>
-
-                            <div>
-                              <b>
-                                {file.name}
-                              </b>
-
-                              <small>
-                                {formatBytes(
-                                  file.size
-                                )}
-                              </small>
-                            </div>
-                          </a>
-                        )
-                      )}
-                    </div>
-                  )}
               </div>
-            </div>
-          ))}
+            )
+          )}
 
-          {ui.quickActions?.length > 0 && (
+          {ui.quickActions
+            ?.length > 0 && (
             <div className="quickActions">
-              <span>Hızlı seçim</span>
+              <span>
+                Hızlı seçim
+              </span>
 
               <div>
                 {ui.quickActions.map(
-                  (action, index) => (
+                  (
+                    action,
+                    index
+                  ) => (
                     <button
                       key={`${action.value}-${index}`}
                       onClick={() =>
@@ -2348,7 +3084,9 @@ Hemen cevap ver.
                         )
                       }
                     >
-                      {action.label}
+                      {
+                        action.label
+                      }
                     </button>
                   )
                 )}
@@ -2356,7 +3094,8 @@ Hemen cevap ver.
             </div>
           )}
 
-          {ui.claimCards?.length > 0 && (
+          {ui.claimCards
+            ?.length > 0 && (
             <div className="richCard">
               <div className="richTitle">
                 <div>
@@ -2365,8 +3104,8 @@ Hemen cevap ver.
                   </span>
 
                   <b>
-                    Hangi dosyayla devam
-                    edelim?
+                    Hangi dosyayla
+                    devam edelim?
                   </b>
                 </div>
 
@@ -2380,9 +3119,13 @@ Hemen cevap ver.
 
               <div className="claimCards">
                 {ui.claimCards.map(
-                  (claim) => (
+                  (
+                    claim
+                  ) => (
                     <button
-                      key={claim.id}
+                      key={
+                        claim.id
+                      }
                       onClick={() =>
                         submitTurn(
                           claim.action
@@ -2391,19 +3134,27 @@ Hemen cevap ver.
                       }
                     >
                       <span>
-                        {claim.title}
+                        {
+                          claim.title
+                        }
                       </span>
 
                       <b>
-                        {claim.subtitle}
+                        {
+                          claim.subtitle
+                        }
                       </b>
 
                       <small>
-                        {claim.meta}
+                        {
+                          claim.meta
+                        }
                       </small>
 
                       <em>
-                        {claim.status}
+                        {
+                          claim.status
+                        }
                       </em>
                     </button>
                   )
@@ -2412,13 +3163,14 @@ Hemen cevap ver.
             </div>
           )}
 
-          {ui.documentCards?.length >
-            0 && (
+          {ui.documentCards
+            ?.length > 0 && (
             <div className="richCard">
               <div className="richTitle">
                 <div>
                   <span>
-                    TALHA'DAN DOSYALAR
+                    TALHA'DAN
+                    DOSYALAR
                   </span>
 
                   <b>
@@ -2431,7 +3183,9 @@ Hemen cevap ver.
 
               <div className="botFiles">
                 {ui.documentCards.map(
-                  (document) => (
+                  (
+                    document
+                  ) => (
                     <a
                       key={
                         document.id
@@ -2446,7 +3200,9 @@ Hemen cevap ver.
 
                       <div>
                         <b>
-                          {document.label}
+                          {
+                            document.label
+                          }
                         </b>
 
                         <small>
@@ -2467,26 +3223,59 @@ Hemen cevap ver.
             </div>
           )}
 
-          <div ref={bottomRef} />
+          <div
+            ref={
+              bottomRef
+            }
+          />
         </section>
 
         {/* COMPOSER */}
 
         <footer className="composerDock">
+          <VerificationAssistant
+            status={
+              verificationStatus
+            }
+            matchedCount={
+              matchedCount
+            }
+            activeRole={
+              activeRole
+            }
+            guide={guide}
+            evidence={
+              evidence
+            }
+            matchedFields={
+              matchedFields
+            }
+            onOpen={() =>
+              setActivePanel(
+                "verification"
+              )
+            }
+          />
+
           <input
             ref={fileInputRef}
             type="file"
             hidden
             multiple
             accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
-            onChange={handleFiles}
+            onChange={
+              handleFiles
+            }
           />
 
           <form
             className="composer"
             onSubmit={(event) => {
               event.preventDefault();
-              submitTurn(text);
+
+              submitTurn(
+                text
+              );
             }}
           >
             <button
@@ -2495,27 +3284,40 @@ Hemen cevap ver.
               onClick={() =>
                 fileInputRef.current?.click()
               }
-              disabled={uploading}
+              disabled={
+                uploading
+              }
             >
-              {uploading ? "…" : "+"}
+              {uploading
+                ? "…"
+                : "+"}
             </button>
 
             <textarea
-              value={text}
-              onChange={(event) =>
-                setText(
-                  event.target.value
-                )
+              value={
+                text
               }
-              onKeyDown={(event) => {
-                if (
-                  event.key === "Enter" &&
-                  !event.shiftKey
-                ) {
-                  event.preventDefault();
-                  submitTurn(text);
+              onChange={
+                (event) =>
+                  setText(
+                    event.target.value
+                  )
+              }
+              onKeyDown={
+                (event) => {
+                  if (
+                    event.key ===
+                      "Enter" &&
+                    !event.shiftKey
+                  ) {
+                    event.preventDefault();
+
+                    submitTurn(
+                      text
+                    );
+                  }
                 }
-              }}
+              }
               placeholder={
                 voiceConnected
                   ? "Konuşabilir veya yazabilirsiniz…"
@@ -2553,7 +3355,7 @@ Hemen cevap ver.
           </form>
 
           <span className="footerNote">
-            AI destekli  · Ses ve
+            AI destekli · Ses ve
             veriler demo amaçlıdır
           </span>
         </footer>
