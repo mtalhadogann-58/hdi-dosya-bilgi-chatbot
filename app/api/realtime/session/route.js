@@ -1,162 +1,329 @@
-export const runtime = "nodejs";
+export const runtime =
+  "nodejs";
+
 
 const REALTIME_MODEL =
-  process.env.OPENAI_REALTIME_MODEL || "gpt-realtime-2.1";
+  process.env
+    .OPENAI_REALTIME_MODEL ||
+  "gpt-realtime-2.1";
+
 
 export async function POST() {
+
   try {
-    if (!process.env.OPENAI_API_KEY) {
+
+    if (
+      !process.env
+        .OPENAI_API_KEY
+    ) {
       return Response.json(
-        { error: "OPENAI_API_KEY tanımlı değil." },
-        { status: 500 }
+        {
+          error:
+            "OPENAI_API_KEY tanımlı değil."
+        },
+        {
+          status: 500
+        }
       );
     }
 
-    const response = await fetch(
-      "https://api.openai.com/v1/realtime/client_secrets",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          session: {
-            type: "realtime",
-            model: REALTIME_MODEL,
 
-            output_modalities: ["audio"],
+    const response =
+      await fetch(
+        "https://api.openai.com/v1/realtime/client_secrets",
+        {
+          method:
+            "POST",
 
-            instructions: `
-Sen TalhaGPT'nin yalnızca gerçek zamanlı SES KATMANISIN.
+          headers: {
+            Authorization:
+              `Bearer ${process.env.OPENAI_API_KEY}`,
 
-Talha erkek bir dijital asistandır.
-Türkçe konuşursun.
+            "Content-Type":
+              "application/json"
+          },
 
-Bu bir IVR anonsu değildir.
-Bir müşteriyle telefonda birebir konuşuyormuş gibi seslendirirsin.
+          body:
+            JSON.stringify({
+              session: {
+                type:
+                  "realtime",
 
-Konuşma karakterin:
-- doğal
-- hızlı ama anlaşılır
-- sıcak fakat profesyonel
-- kendinden emin
-- insan temsilci temposunda
-- gereksiz duraksamasız
-- kelimeleri tek tek anons eder gibi okumayan
-- cümle sonlarında yapay tonlama yapmayan
+                model:
+                  REALTIME_MODEL,
 
-Kullanıcının iş sorularına kendi başına cevap VERME.
-İş cevabı HDI'nin V5 agent katmanından gelecektir.
-
-Uygulama sana bir metin verdiğinde:
-- yeni bilgi ekleme,
-- bilgi çıkarma,
-- anlamı değiştirme,
-- metni doğal bir telefon konuşması gibi seslendir.
-
-Sayı, plaka, TCKN, VKN, dosya numarası,
-poliçe numarası ve partaj gibi bilgileri anlaşılır söyle.
-`.trim(),
-
-            audio: {
-              input: {
-                transcription: {
-                  model: "gpt-live-transcribe",
-
-                  prompt:
-                    "HDI Sigorta hasar müşteri hizmetleri telefon görüşmesi. " +
-                    "Türkçe konuşma. Hasar, poliçe, dosya numarası, TCKN, VKN, " +
-                    "partaj, acente, mağdur, servis, eksper, evrak, ödeme, IBAN, " +
-                    "plaka, trafik, kasko ve HDI Plus terimleri geçebilir. " +
-                    "Plaka ve sayısal kimlikleyicileri özellikle dikkatli yaz.",
-
-                  keywords: [
-                    "HDI Sigorta",
-                    "HDI Plus",
-                    "hasar",
-                    "hasar dosyası",
-                    "dosya numarası",
-                    "poliçe",
-                    "poliçe numarası",
-                    "TCKN",
-                    "VKN",
-                    "partaj",
-                    "acente",
-                    "mağdur",
-                    "servis",
-                    "eksper",
-                    "evrak",
-                    "ödeme",
-                    "IBAN",
-                    "plaka",
-                    "trafik",
-                    "kasko"
+                output_modalities:
+                  [
+                    "audio"
                   ],
 
-                  languages: ["tr"],
+                instructions:
+                  `
+Sen HDI Sigorta AI Assistant Talha'nın ses katmanısın.
 
-                  // Transcript ekrana mümkün olduğunca erken aksın.
-                  delay: "low"
-                },
+Talha genç yetişkin bir ERKEK dijital asistandır.
 
-                noise_reduction: {
-                  type: "near_field"
-                },
+Türkçe konuşursun.
 
-                /*
-                 * Kullanıcı konuşmayı bitirdiğinde
-                 * otomatik olarak turn'ü commit eder.
-                 *
-                 * create_response FALSE:
-                 * Realtime model iş cevabını üretmez.
-                 * Cevabı V5 /api/chat üretecek.
-                 */
-                turn_detection: {
-                  type: "semantic_vad",
-                  eagerness: "high",
-                  create_response: false,
-                  interrupt_response: true
+Bu bir IVR değildir.
+Bir çağrı merkezi anonsu değildir.
+Metin okuyan spiker gibi konuşmazsın.
+
+Gerçek bir müşteri temsilcisinin telefonda konuştuğu gibi:
+- rahat,
+- doğal,
+- sıcak,
+- kendinden emin,
+- hızlı ama anlaşılır,
+- insansı
+
+konuşursun.
+
+Gereksiz duraklama yapma.
+
+Her kelimeyi ayrı ayrı vurgulama.
+
+Cümle sonlarını uzatma.
+
+Aşırı resmi veya teatral ses kullanma.
+
+Yanıtı kısa tutan bir konuşma temposu kullan.
+
+Normal insan konuşmasından hafif hızlı konuş.
+
+İş cevabını kendin üretme.
+
+Uygulama sana HDI backend agent'ın ürettiği metni verecek.
+
+Verilen metni:
+- değiştirme,
+- yeni bilgi ekleme,
+- bilgi çıkarma,
+- yalnızca doğal şekilde seslendir.
+
+Sayıları anlaşılır söyle.
+
+Dosya numarası, poliçe numarası,
+TCKN, VKN, partaj, servis kodu,
+eksper kodu ve plakaları dikkatli söyle.
+`.trim(),
+
+                audio: {
+
+                  input: {
+
+                    transcription: {
+                      model:
+                        "gpt-live-transcribe",
+
+                      delay:
+                        "medium",
+
+                      languages:
+                        [
+                          "tr"
+                        ],
+
+                      prompt:
+                        `
+Bu HDI Sigorta müşteri hizmetleri hasar görüşmesidir.
+
+Konuşma dili Türkçedir.
+
+Sigorta terminolojisini ve özellikle sayısal bilgileri dikkatli yaz.
+
+Geçebilecek terimler:
+
+HDI Sigorta
+HDI Plus
+hasar
+hasar dosyası
+dosya numarası
+poliçe
+poliçe numarası
+TCKN
+TC kimlik numarası
+VKN
+vergi kimlik numarası
+partaj
+partaj kodu
+acente
+mağdur
+servis
+servis anlaşma kodu
+eksper
+eksper anlaşma kodu
+evrak
+ödeme
+IBAN
+plaka
+trafik
+kasko
+
+Türkçe harfleri doğru yaz.
+
+Plakalarda harfleri kaybetme.
+
+Örnek:
+"on altı a de altı yüz otuz"
+→ "16 AD 630"
+
+Örnek:
+"on altı ce a fe iki yüz yetmiş üç"
+→ "16 CAF 273"
+
+Kullanıcı bir alan için birden fazla alternatif söylüyorsa hepsini transcriptte koru.
+
+Örnek:
+"plaka ya 16 CAF 273 ya da 34 S 2054"
+
+→
+"Plaka ya 16 CAF 273 ya da 34 S 2054."
+
+Sayıları uydurma.
+`.trim(),
+
+                      keywords: [
+                        "HDI Sigorta",
+                        "HDI Plus",
+                        "hasar dosyası",
+                        "dosya numarası",
+                        "poliçe numarası",
+                        "TCKN",
+                        "VKN",
+                        "partaj",
+                        "partaj kodu",
+                        "acente",
+                        "mağdur",
+                        "servis",
+                        "servis anlaşma kodu",
+                        "eksper",
+                        "eksper anlaşma kodu",
+                        "evrak",
+                        "ödeme",
+                        "IBAN",
+                        "plaka",
+                        "trafik",
+                        "kasko"
+                      ]
+                    },
+
+
+                    noise_reduction: {
+                      type:
+                        "near_field"
+                    },
+
+
+                    /*
+                     * Kullanıcının yaklaşık
+                     * 420ms susması turn'ü kapatır.
+                     *
+                     * Realtime kendisi cevap
+                     * üretmez.
+                     *
+                     * İş cevabını V6 backend
+                     * üretir.
+                     */
+                    turn_detection: {
+                      type:
+                        "server_vad",
+
+                      threshold:
+                        0.46,
+
+                      prefix_padding_ms:
+                        240,
+
+                      silence_duration_ms:
+                        420,
+
+                      create_response:
+                        false,
+
+                      interrupt_response:
+                        true
+                    }
+                  },
+
+
+                  output: {
+
+                    /*
+                     * Ash yerine kalite için
+                     * Cedar deniyoruz.
+                     */
+                    voice:
+                      "cedar",
+
+                    /*
+                     * Playback biraz hızlanır.
+                     * Prompt ayrıca konuşma
+                     * temposunu doğal biçimde
+                     * hızlandırıyor.
+                     */
+                    speed:
+                      1.12
+                  }
                 }
-              },
-
-              output: {
-                // Talha için ilk deneyeceğimiz daha maskülen preset.
-                voice: "ash",
-
-                // Önceki yavaş IVR hissini kırıyoruz.
-                speed: 1.18
               }
-            }
-          }
-        })
-      }
-    );
+            })
+        }
+      );
 
-    const data = await response.json();
 
-    if (!response.ok) {
-      console.error("Realtime client secret:", data);
+    const data =
+      await response.json();
+
+
+    if (
+      !response.ok
+    ) {
+      console.error(
+        "Realtime session:",
+        data
+      );
 
       return Response.json(
         {
           error:
-            data?.error?.message ||
+            data
+              ?.error
+              ?.message ||
             "Realtime oturumu oluşturulamadı."
         },
-        { status: response.status }
+        {
+          status:
+            response.status
+        }
       );
     }
 
-    return Response.json(data);
-  } catch (error) {
-    console.error("Realtime session error:", error);
+
+    return Response.json(
+      data
+    );
+
+
+  } catch (
+    error
+  ) {
+
+    console.error(
+      "Realtime session error:",
+      error
+    );
+
 
     return Response.json(
       {
-        error: "VoiceBot oturumu oluşturulurken hata oluştu."
+        error:
+          "Sesli görüşme oturumu oluşturulurken hata oluştu."
       },
-      { status: 500 }
+      {
+        status: 500
+      }
     );
+
   }
 }
