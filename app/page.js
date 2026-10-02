@@ -1,20 +1,14 @@
 "use client";
 
-import {
-  useEffect,
-  useRef,
-  useState
-} from "react";
-
+import { useEffect, useRef, useState } from "react";
 
 const EMPTY_UI = {
   quickActions: [],
   claimCards: [],
   documentCards: [],
   verification: null,
-  uploadedFiles: []
+  uploadedFiles: [],
 };
-
 
 function uid(prefix = "item") {
   return `${prefix}-${Date.now()}-${Math.random()
@@ -22,421 +16,268 @@ function uid(prefix = "item") {
     .slice(2, 8)}`;
 }
 
-
 function getClientContext(channel = "chat") {
   const now = new Date();
 
   return {
-    locale:
-      navigator.language ||
-      "tr-TR",
-
+    locale: navigator.language || "tr-TR",
     timeZone:
-      Intl.DateTimeFormat()
-        .resolvedOptions()
-        .timeZone ||
-      "Europe/Istanbul",
-
-    localIso:
-      now.toISOString(),
-
-    localHour:
-      now.getHours(),
-
-    localDay:
-      now.toLocaleDateString(
-        "tr-TR",
-        {
-          weekday: "long",
-          year: "numeric",
-          month: "long",
-          day: "numeric"
-        }
-      ),
-
-    channel
+      Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Istanbul",
+    localIso: now.toISOString(),
+    localHour: now.getHours(),
+    localDay: now.toLocaleDateString("tr-TR", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    }),
+    channel,
   };
 }
-
 
 function formatBytes(bytes = 0) {
   if (!bytes) return "0 KB";
 
   if (bytes < 1024 * 1024) {
-    return `${Math.max(
-      1,
-      Math.round(bytes / 1024)
-    )} KB`;
+    return `${Math.max(1, Math.round(bytes / 1024))} KB`;
   }
 
-  return `${(
-    bytes /
-    1024 /
-    1024
-  ).toFixed(1)} MB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-
 function waitForDataChannel(dc) {
-  if (
-    dc.readyState ===
-    "open"
-  ) {
+  if (dc.readyState === "open") {
     return Promise.resolve();
   }
 
-  return new Promise(
-    (resolve, reject) => {
-      const timeout =
-        setTimeout(() => {
-          reject(
-            new Error(
-              "Ses bağlantısı zaman aşımına uğradı."
-            )
-          );
-        }, 12000);
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      reject(new Error("Ses bağlantısı zaman aşımına uğradı."));
+    }, 12000);
 
-      dc.addEventListener(
-        "open",
-        () => {
-          clearTimeout(
-            timeout
-          );
+    dc.addEventListener(
+      "open",
+      () => {
+        clearTimeout(timeout);
+        resolve();
+      },
+      { once: true }
+    );
 
-          resolve();
-        },
-        {
-          once: true
-        }
-      );
-
-      dc.addEventListener(
-        "error",
-        () => {
-          clearTimeout(
-            timeout
-          );
-
-          reject(
-            new Error(
-              "Ses bağlantısı kurulamadı."
-            )
-          );
-        },
-        {
-          once: true
-        }
-      );
-    }
-  );
+    dc.addEventListener(
+      "error",
+      () => {
+        clearTimeout(timeout);
+        reject(new Error("Ses bağlantısı kurulamadı."));
+      },
+      { once: true }
+    );
+  });
 }
-
 
 function Waveform({
   values = [],
   label,
   sublabel,
   active,
-  variant = "customer"
+  variant = "customer",
 }) {
   return (
-    <div
-      className={`waveCard ${variant} ${
-        active ? "active" : ""
-      }`}
-    >
+    <div className={`waveCard ${variant} ${active ? "active" : ""}`}>
       <div className="waveIdentity">
-        <span className="waveLabel">
-          {label}
-        </span>
-
-        <span className="waveSub">
-          {sublabel}
-        </span>
+        <span className="waveLabel">{label}</span>
+        <span className="waveSub">{sublabel}</span>
       </div>
 
       <div className="waveBars">
-        {values.map(
-          (value, index) => (
-            <span
-              key={index}
-              style={{
-                height:
-                  `${Math.max(
-                    4,
-                    value
-                  )}%`
-              }}
-            />
-          )
-        )}
+        {values.map((value, index) => (
+          <span
+            key={index}
+            style={{
+              height: `${Math.max(4, value)}%`,
+            }}
+          />
+        ))}
       </div>
     </div>
   );
 }
 
-
-function StatusPill({
-  status
-}) {
+function StatusPill({ status }) {
   const map = {
     VERIFIED: {
-      label:
-        "Doğrulandı",
-      className:
-        "verified"
+      label: "Doğrulandı",
+      className: "verified",
     },
-
     IN_PROGRESS: {
-      label:
-        "Doğrulama sürüyor",
-      className:
-        "progress"
+      label: "Doğrulama sürüyor",
+      className: "progress",
     },
-
     UNVERIFIED: {
-      label:
-        "Doğrulanmadı",
-      className:
-        "muted"
-    }
+      label: "Doğrulanmadı",
+      className: "muted",
+    },
   };
 
-  const item =
-    map[status] ||
-    map.UNVERIFIED;
+  const item = map[status] || map.UNVERIFIED;
 
   return (
-    <span
-      className={`statePill ${item.className}`}
-    >
+    <span className={`statePill ${item.className}`}>
       {item.label}
     </span>
   );
 }
 
-
 const FIELD_LABELS = {
-  dosyaNo:
-    "Dosya",
-
-  policeNo:
-    "Poliçe",
-
-  plaka:
-    "Plaka",
-
-  tckn:
-    "TCKN",
-
-  vkn:
-    "VKN",
-
-  telefon:
-    "Telefon",
-
-  dogumTarihi:
-    "Doğum Tarihi",
-
-  partajNo:
-    "Partaj",
-
-  servisKodu:
-    "Servis Kodu",
-
-  eksperKodu:
-    "Eksper Kodu"
+  dosyaNo: "Dosya",
+  policeNo: "Poliçe",
+  plaka: "Plaka",
+  tckn: "TCKN",
+  vkn: "VKN",
+  telefon: "Telefon",
+  dogumTarihi: "Doğum Tarihi",
+  partajNo: "Partaj",
+  servisKodu: "Servis Kodu",
+  eksperKodu: "Eksper Kodu",
 };
 
+/*
+ * Tool gerektirmeyen basit sesli konuşmalar.
+ *
+ * Bunlar /api/chat üzerinden iki ayrı AI çağrısını beklemez.
+ * Realtime model doğrudan cevap verir.
+ */
+function isRealtimeSmallTalk(value = "") {
+  const text = String(value)
+    .toLocaleLowerCase("tr-TR")
+    .replace(/[?.!,;:]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const patterns = [
+    /^selam$/,
+    /^merhaba$/,
+    /^günaydın$/,
+    /^iyi akşamlar$/,
+    /^iyi günler$/,
+    /^nasılsın$/,
+    /^naber$/,
+    /^ne haber$/,
+    /^ne yapıyorsun$/,
+    /^orada mısın$/,
+    /^beni duyuyor musun$/,
+    /^sesim geliyor mu$/,
+    /^sesimi duyuyor musun$/,
+    /^konuşuyor musun$/,
+    /^neden konuşmuyorsun$/,
+    /^niye konuşmuyorsun$/,
+    /^ses geliyor mu$/,
+    /^ses geliyor mu bana$/,
+    /^beni duyabiliyor musun$/,
+  ];
+
+  return patterns.some((pattern) => pattern.test(text));
+}
 
 export default function Home() {
+  const [messages, setMessages] = useState([]);
+  const [text, setText] = useState("");
+  const [session, setSession] = useState({});
+  const [ui, setUi] = useState(EMPTY_UI);
+  const [meta, setMeta] = useState(null);
 
-  const [
-    messages,
-    setMessages
-  ] =
-    useState([]);
+  const [busy, setBusy] = useState(false);
+  const [activity, setActivity] = useState("");
 
-  const [
-    text,
-    setText
-  ] =
-    useState("");
+  const [voiceConnected, setVoiceConnected] = useState(false);
+  const [voiceStatus, setVoiceStatus] = useState("Kapalı");
+  const [voiceError, setVoiceError] = useState("");
 
-  const [
-    session,
-    setSession
-  ] =
-    useState({});
+  const [showOps, setShowOps] = useState(false);
 
-  const [
-    ui,
-    setUi
-  ] =
-    useState(
-      EMPTY_UI
-    );
+  const [uploading, setUploading] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState([]);
 
-  const [
-    meta,
-    setMeta
-  ] =
-    useState(null);
+  const [customerWave, setCustomerWave] = useState(
+    Array(22).fill(5)
+  );
 
-  const [
-    busy,
-    setBusy
-  ] =
-    useState(false);
-
-  const [
-    activity,
-    setActivity
-  ] =
-    useState("");
-
-  const [
-    voiceConnected,
-    setVoiceConnected
-  ] =
-    useState(false);
-
-  const [
-    voiceStatus,
-    setVoiceStatus
-  ] =
-    useState("Kapalı");
-
-  const [
-    voiceError,
-    setVoiceError
-  ] =
-    useState("");
-
-  const [
-    showOps,
-    setShowOps
-  ] =
-    useState(false);
-
-  const [
-    uploading,
-    setUploading
-  ] =
-    useState(false);
-
-  const [
-    uploadedFiles,
-    setUploadedFiles
-  ] =
-    useState([]);
-
-  const [
-    customerWave,
-    setCustomerWave
-  ] =
-    useState(
-      Array(22).fill(5)
-    );
-
-  const [
-    talhaWave,
-    setTalhaWave
-  ] =
-    useState(
-      Array(22).fill(5)
-    );
-
-
-  const conversationRef =
-    useRef([]);
-
-  const sessionRef =
-    useRef({});
-
-  const uploadedFilesRef =
-    useRef([]);
-
-  const greetingRef =
-    useRef("");
-
-  const fileInputRef =
-    useRef(null);
-
-  const bottomRef =
-    useRef(null);
-
+  const [talhaWave, setTalhaWave] = useState(
+    Array(22).fill(5)
+  );
 
   /*
-   * REALTIME
+   * CHAT / SESSION REFS
    */
-  const pcRef =
-    useRef(null);
+  const conversationRef = useRef([]);
+  const sessionRef = useRef({});
+  const uploadedFilesRef = useRef([]);
+  const greetingRef = useRef("");
 
-  const dcRef =
-    useRef(null);
+  const fileInputRef = useRef(null);
+  const bottomRef = useRef(null);
 
-  const microphoneRef =
-    useRef(null);
+  /*
+   * REALTIME REFS
+   */
+  const pcRef = useRef(null);
+  const dcRef = useRef(null);
+  const microphoneRef = useRef(null);
 
-  const remoteAudioRef =
-    useRef(null);
+  /*
+   * Bu artık gerçek DOM <audio> elementi.
+   */
+  const remoteAudioRef = useRef(null);
 
-  const responseActiveRef =
-    useRef(false);
+  const responseActiveRef = useRef(false);
 
-  const userItemMapRef =
-    useRef(
-      new Map()
-    );
+  /*
+   * React closure kaynaklı voiceConnected bug'ını engeller.
+   */
+  const voiceConnectedRef = useRef(false);
 
-  const processedItemsRef =
-    useRef(
-      new Set()
-    );
+  /*
+   * Birden fazla backend request'in aynı anda açılmasını engeller.
+   */
+  const busyRef = useRef(false);
 
-  const currentSpeechRef =
-    useRef({
-      messageId: null,
-      target: "",
-      transcript: ""
-    });
+  /*
+   * Aynı transcript birkaç eventten gelirse tekrar işlenmez.
+   */
+  const lastTurnRef = useRef({
+    key: "",
+    time: 0,
+  });
 
-  const localMeterCleanupRef =
-    useRef(null);
+  const userItemMapRef = useRef(new Map());
+  const processedItemsRef = useRef(new Set());
 
-  const remoteMeterCleanupRef =
-    useRef(null);
+  const currentSpeechRef = useRef({
+    messageId: null,
+    target: "",
+    transcript: "",
+    mode: null,
+  });
 
+  const localMeterCleanupRef = useRef(null);
+  const remoteMeterCleanupRef = useRef(null);
 
-  function syncSession(
-    next
-  ) {
+  function syncSession(next) {
     const value =
-      next &&
-      typeof next ===
-        "object"
+      next && typeof next === "object"
         ? next
         : {};
 
-    sessionRef.current =
-      value;
-
-    setSession(
-      value
-    );
+    sessionRef.current = value;
+    setSession(value);
   }
 
-
-  function syncUi(
-    next
-  ) {
+  function syncUi(next) {
     setUi({
       ...EMPTY_UI,
-      ...(next || {})
+      ...(next || {}),
     });
   }
-
 
   function upsertMessage(
     id,
@@ -447,188 +288,127 @@ export default function Home() {
     const {
       append = false,
       live = false,
-      files = null
+      files = null,
     } = options;
 
-    setMessages(
-      (current) => {
-        const index =
-          current.findIndex(
-            (item) =>
-              item.id === id
-          );
+    setMessages((current) => {
+      const index = current.findIndex(
+        (item) => item.id === id
+      );
 
-        if (
-          index === -1
-        ) {
-          return [
-            ...current,
-            {
-              id,
-              role,
-              content,
-              live,
-              files
-            }
-          ];
-        }
-
-        const next =
-          [...current];
-
-        next[index] = {
-          ...next[index],
-
-          role,
-
-          content:
-            append
-              ? `${next[index].content || ""}${content}`
-              : content,
-
-          live,
-
-          files:
-            files ||
-            next[index].files
-        };
-
-        return next;
+      if (index === -1) {
+        return [
+          ...current,
+          {
+            id,
+            role,
+            content,
+            live,
+            files,
+          },
+        ];
       }
-    );
+
+      const next = [...current];
+
+      next[index] = {
+        ...next[index],
+        role,
+        content: append
+          ? `${next[index].content || ""}${content}`
+          : content,
+        live,
+        files: files || next[index].files,
+      };
+
+      return next;
+    });
   }
 
-
-  function removeLiveFlag(
-    id
-  ) {
-    setMessages(
-      (current) =>
-        current.map(
-          (item) =>
-            item.id === id
-              ? {
-                  ...item,
-                  live: false
-                }
-              : item
-        )
+  function removeLiveFlag(id) {
+    setMessages((current) =>
+      current.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              live: false,
+            }
+          : item
+      )
     );
   }
-
 
   useEffect(() => {
-    bottomRef
-      .current
-      ?.scrollIntoView({
-        behavior:
-          "smooth"
-      });
+    bottomRef.current?.scrollIntoView({
+      behavior: "smooth",
+    });
   }, [
     messages,
     ui.quickActions,
     ui.claimCards,
-    ui.documentCards
+    ui.documentCards,
   ]);
-
 
   async function bootstrap() {
     try {
-      const response =
-        await fetch(
-          "/api/chat",
-          {
-            method:
-              "POST",
+      const response = await fetch("/api/chat", {
+        method: "POST",
 
-            headers: {
-              "Content-Type":
-                "application/json"
-            },
+        headers: {
+          "Content-Type": "application/json",
+        },
 
-            body:
-              JSON.stringify({
-                bootstrap:
-                  true,
+        body: JSON.stringify({
+          bootstrap: true,
+          clientContext: getClientContext("chat"),
+        }),
+      });
 
-                clientContext:
-                  getClientContext(
-                    "chat"
-                  )
-              })
-          }
-        );
+      const data = await response.json();
 
-      const data =
-        await response.json();
-
-      if (
-        !response.ok
-      ) {
+      if (!response.ok) {
         throw new Error(
           data.error ||
-          "Karşılama oluşturulamadı."
+            "Karşılama oluşturulamadı."
         );
       }
 
-      const greeting =
-        String(
-          data.message ||
-          ""
-        ).trim();
+      const greeting = String(
+        data.message || ""
+      ).trim();
 
-      greetingRef.current =
-        greeting;
+      greetingRef.current = greeting;
 
-      conversationRef.current =
-        [
-          {
-            role:
-              "assistant",
+      conversationRef.current = [
+        {
+          role: "assistant",
+          content: greeting,
+        },
+      ];
 
-            content:
-              greeting
-          }
-        ];
-
-      syncSession(
-        data.session ||
-        {}
-      );
-
-      setMeta(
-        data
-      );
-
-      syncUi(
-        data.ui
-      );
+      syncSession(data.session || {});
+      setMeta(data);
+      syncUi(data.ui);
 
       upsertMessage(
         "opening",
         "assistant",
         greeting
       );
+    } catch (error) {
+      console.error("Bootstrap:", error);
 
-    } catch (
-      error
-    ) {
       const greeting =
         "İyi günler, HDI Sigorta'dan Talha ben. Nasıl yardımcı olabilirim?";
 
-      greetingRef.current =
-        greeting;
+      greetingRef.current = greeting;
 
-      conversationRef.current =
-        [
-          {
-            role:
-              "assistant",
-
-            content:
-              greeting
-          }
-        ];
+      conversationRef.current = [
+        {
+          role: "assistant",
+          content: greeting,
+        },
+      ];
 
       upsertMessage(
         "opening",
@@ -638,7 +418,6 @@ export default function Home() {
     }
   }
 
-
   useEffect(() => {
     bootstrap();
 
@@ -647,15 +426,10 @@ export default function Home() {
     };
   }, []);
 
-
-  function chooseActivity(
-    value
-  ) {
-    const lower =
-      String(value)
-        .toLocaleLowerCase(
-          "tr-TR"
-        );
+  function chooseActivity(value) {
+    const lower = String(value).toLocaleLowerCase(
+      "tr-TR"
+    );
 
     if (
       /dosya|hasar|plaka|poliçe|police/.test(
@@ -673,208 +447,225 @@ export default function Home() {
       return "Belge bilgileri kontrol ediliyor";
     }
 
-    if (
-      /ödeme|odeme/.test(
-        lower
-      )
-    ) {
+    if (/ödeme|odeme/.test(lower)) {
       return "Ödeme bilgileri kontrol ediliyor";
     }
 
     return "Yanıt hazırlanıyor";
   }
 
+  /*
+   * ============================
+   * BUSINESS / CHAT TURN
+   * ============================
+   */
 
   async function submitTurn(
     content,
     options = {}
   ) {
-    const value =
-      String(
-        content ||
-        ""
-      ).trim();
+    const value = String(content || "").trim();
 
-    if (
-      !value ||
-      busy
-    ) {
+    if (!value) {
       return;
     }
 
     const {
       source = "chat",
       displayUser = true,
-      files = null
+      files = null,
     } = options;
 
-    const userMessageId =
-      uid("user");
+    /*
+     * Aynı cümle birkaç event tarafından
+     * milisaniyeler içinde gönderilmişse engelle.
+     */
+    const normalized = value
+      .toLocaleLowerCase("tr-TR")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    const now = Date.now();
 
     if (
-      displayUser
+      lastTurnRef.current.key === normalized &&
+      now - lastTurnRef.current.time < 2200
     ) {
+      console.log(
+        "Duplicate turn ignored:",
+        value
+      );
+
+      return;
+    }
+
+    lastTurnRef.current = {
+      key: normalized,
+      time: now,
+    };
+
+    /*
+     * Önceki business turn hâlâ çalışıyorsa
+     * aynı anda yeni backend turn açma.
+     */
+    if (busyRef.current) {
+      console.log(
+        "Turn ignored because previous turn is busy:",
+        value
+      );
+
+      return;
+    }
+
+    busyRef.current = true;
+    setBusy(true);
+
+    const userMessageId = uid("user");
+
+    if (displayUser) {
       upsertMessage(
         userMessageId,
         "user",
         value,
         {
-          files
+          files,
         }
       );
     }
 
-    conversationRef.current =
-      [
-        ...conversationRef.current,
-        {
-          role: "user",
-          content: value
-        }
-      ];
+    conversationRef.current = [
+      ...conversationRef.current,
+      {
+        role: "user",
+        content: value,
+      },
+    ];
 
     setText("");
-    setBusy(true);
 
-    syncUi({
-      ...ui,
+    /*
+     * Önceki turn'ün contextual butonlarını
+     * yeni cevap gelene kadar gizle.
+     */
+    setUi((current) => ({
+      ...current,
       quickActions: [],
       claimCards: [],
-      documentCards: []
-    });
+      documentCards: [],
+    }));
 
-    const activityTimer =
-      setTimeout(
-        () => {
-          setActivity(
-            chooseActivity(
-              value
-            )
-          );
-        },
-        450
+    const activityTimer = setTimeout(() => {
+      setActivity(
+        chooseActivity(value)
       );
+    }, 400);
 
     try {
-      const response =
-        await fetch(
-          "/api/chat",
-          {
-            method:
-              "POST",
+      /*
+       * KRİTİK:
+       * voiceConnected React state'i değil,
+       * güncel REF okunuyor.
+       */
+      const voiceActive =
+        voiceConnectedRef.current;
 
-            headers: {
-              "Content-Type":
-                "application/json"
-            },
+      const response = await fetch(
+        "/api/chat",
+        {
+          method: "POST",
 
-            body:
-              JSON.stringify({
-                messages:
-                  conversationRef.current,
+          headers: {
+            "Content-Type": "application/json",
+          },
 
-                session:
-                  sessionRef.current,
+          body: JSON.stringify({
+            messages:
+              conversationRef.current,
 
-                uploadedFiles:
-                  uploadedFilesRef.current,
+            session:
+              sessionRef.current,
 
-                clientContext:
-                  getClientContext(
-                    voiceConnected ||
-                    source ===
-                      "voice"
-                      ? "voice"
-                      : "chat"
-                  )
-              })
-          }
-        );
+            uploadedFiles:
+              uploadedFilesRef.current,
 
-      const data =
-        await response.json();
+            clientContext:
+              getClientContext(
+                voiceActive ||
+                  source === "voice"
+                  ? "voice"
+                  : "chat"
+              ),
+          }),
+        }
+      );
 
-      if (
-        !response.ok
-      ) {
+      const data = await response.json();
+
+      if (!response.ok) {
         throw new Error(
           data.error ||
-          "Yanıt alınamadı."
+            "Yanıt alınamadı."
         );
       }
 
-      syncSession(
-        data.session ||
-        {}
-      );
+      syncSession(data.session || {});
 
       syncUi(
         data.ui || {
           quickActions:
-            data.quickActions ||
-            []
+            data.quickActions || [],
         }
       );
 
-      setMeta(
-        data
-      );
+      setMeta(data);
 
-      const answer =
-        String(
-          data.message ||
-          ""
-        ).trim();
+      const answer = String(
+        data.message || ""
+      ).trim();
 
-      conversationRef.current =
-        [
-          ...conversationRef.current,
-          {
-            role:
-              "assistant",
+      conversationRef.current = [
+        ...conversationRef.current,
+        {
+          role: "assistant",
+          content: answer,
+        },
+      ];
 
-            content:
-              answer
-          }
-        ];
-
+      /*
+       * Voice açıksa text cevabı ayrıca
+       * normal bubble olarak basmıyoruz.
+       *
+       * Realtime output transcript,
+       * Talha konuşurken bubble'ı oluşturacak.
+       */
       if (
-        voiceConnected
+        voiceConnectedRef.current
       ) {
-        speakRealtime(
-          answer
-        );
+        speakRealtime(answer);
       } else {
         upsertMessage(
-          uid(
-            "assistant"
-          ),
+          uid("assistant"),
           "assistant",
           answer
         );
       }
+    } catch (error) {
+      console.error("submitTurn:", error);
 
-    } catch (
-      error
-    ) {
       upsertMessage(
-        uid(
-          "assistant"
-        ),
+        uid("assistant"),
         "assistant",
         `Şu anda işlemi tamamlayamadım. ${error.message}`
       );
-
     } finally {
-      clearTimeout(
-        activityTimer
-      );
+      clearTimeout(activityTimer);
 
       setActivity("");
+
+      busyRef.current = false;
       setBusy(false);
     }
   }
-
 
   /*
    * =========================
@@ -882,101 +673,74 @@ export default function Home() {
    * =========================
    */
 
-  async function handleFiles(
-    event
-  ) {
-    const files =
-      Array.from(
-        event.target.files ||
-        []
-      );
+  async function handleFiles(event) {
+    const files = Array.from(
+      event.target.files || []
+    );
 
-    event.target.value =
-      "";
+    event.target.value = "";
 
-    if (
-      !files.length
-    ) {
+    if (!files.length) {
       return;
     }
 
-    setUploading(
-      true
-    );
+    setUploading(true);
 
-    const received =
-      [];
+    const received = [];
 
     try {
-      for (
-        const file of files
-      ) {
-        const form =
-          new FormData();
+      for (const file of files) {
+        const form = new FormData();
 
         form.append(
           "file",
           file
         );
 
-        const response =
-          await fetch(
-            "/api/uploads",
-            {
-              method:
-                "POST",
+        const response = await fetch(
+          "/api/uploads",
+          {
+            method: "POST",
+            body: form,
+          }
+        );
 
-              body:
-                form
-            }
-          );
+        const data = await response.json();
 
-        const data =
-          await response.json();
-
-        if (
-          !response.ok
-        ) {
+        if (!response.ok) {
           throw new Error(
             data.error ||
-            `${file.name} yüklenemedi.`
+              `${file.name} yüklenemedi.`
           );
         }
 
         received.push({
           ...data.file,
 
+          /*
+           * Demo için browser preview.
+           */
           localUrl:
-            URL.createObjectURL(
-              file
-            )
+            URL.createObjectURL(file),
         });
       }
 
-      const nextFiles =
-        [
-          ...uploadedFilesRef.current,
-          ...received
-        ];
+      const nextFiles = [
+        ...uploadedFilesRef.current,
+        ...received,
+      ];
 
       uploadedFilesRef.current =
         nextFiles;
 
-      setUploadedFiles(
-        nextFiles
-      );
+      setUploadedFiles(nextFiles);
 
-      const names =
-        received
-          .map(
-            (item) =>
-              item.name
-          )
-          .join(", ");
+      const names = received
+        .map((item) => item.name)
+        .join(", ");
 
       const message =
-        received.length ===
-        1
+        received.length === 1
           ? `${names} dosyasını yükledim.`
           : `${names} dosyalarını yükledim.`;
 
@@ -985,42 +749,33 @@ export default function Home() {
         "user",
         message,
         {
-          files:
-            received
+          files: received,
         }
       );
 
-      await submitTurn(
-        message,
-        {
-          displayUser:
-            false,
-
-          files:
-            received
-        }
+      await submitTurn(message, {
+        displayUser: false,
+        files: received,
+      });
+    } catch (error) {
+      console.error(
+        "File upload:",
+        error
       );
 
-    } catch (
-      error
-    ) {
       upsertMessage(
         uid("system"),
         "assistant",
         `Dosya yükleme sırasında hata oluştu: ${error.message}`
       );
-
     } finally {
-      setUploading(
-        false
-      );
+      setUploading(false);
     }
   }
 
-
   /*
    * =========================
-   * AUDIO METERS
+   * AUDIO LEVEL METERS
    * =========================
    */
 
@@ -1032,9 +787,7 @@ export default function Home() {
       window.AudioContext ||
       window.webkitAudioContext;
 
-    if (
-      !AudioContext
-    ) {
+    if (!AudioContext) {
       return () => {};
     }
 
@@ -1049,77 +802,52 @@ export default function Home() {
     const analyser =
       context.createAnalyser();
 
-    analyser.fftSize =
-      128;
+    analyser.fftSize = 128;
 
     analyser.smoothingTimeConstant =
       0.72;
 
-    source.connect(
-      analyser
-    );
+    source.connect(analyser);
 
     const data =
       new Uint8Array(
         analyser.frequencyBinCount
       );
 
-    const interval =
-      setInterval(
-        () => {
-          analyser.getByteFrequencyData(
-            data
-          );
+    const interval = setInterval(() => {
+      analyser.getByteFrequencyData(data);
 
-          const bars =
-            Array.from({
-              length: 22
-            }).map(
-              (_, index) => {
-                const position =
-                  Math.min(
-                    data.length -
-                      1,
-                    Math.floor(
-                      (
-                        index /
-                        22
-                      ) *
-                      data.length
-                    )
-                  );
+      const bars = Array.from({
+        length: 22,
+      }).map((_, index) => {
+        const position = Math.min(
+          data.length - 1,
+          Math.floor(
+            (index / 22) *
+              data.length
+          )
+        );
 
-                const value =
-                  data[position] ||
-                  0;
+        const value =
+          data[position] || 0;
 
-                return Math.min(
-                  100,
-                  Math.max(
-                    5,
-                    Math.round(
-                      (
-                        value /
-                        255
-                      ) *
-                      100
-                    )
-                  )
-                );
-              }
-            );
+        return Math.min(
+          100,
+          Math.max(
+            5,
+            Math.round(
+              (value / 255) *
+                100
+            )
+          )
+        );
+      });
 
-          setter(
-            bars
-          );
-        },
-        55
-      );
+      setter(bars);
+    }, 55);
 
     return () => {
-      clearInterval(
-        interval
-      );
+      clearInterval(interval);
 
       try {
         source.disconnect();
@@ -1131,18 +859,13 @@ export default function Home() {
 
       context
         .close()
-        .catch(
-          () => {}
-        );
+        .catch(() => {});
 
       setter(
-        Array(22).fill(
-          5
-        )
+        Array(22).fill(5)
       );
     };
   }
-
 
   /*
    * =========================
@@ -1151,19 +874,22 @@ export default function Home() {
    */
 
   function cancelRealtimeResponse() {
+    /*
+     * Önceki "Cancellation failed:
+     * no active response found"
+     * hatasını bu kontrol engelliyor.
+     */
     if (
       !responseActiveRef.current
     ) {
       return;
     }
 
-    const dc =
-      dcRef.current;
+    const dc = dcRef.current;
 
     if (
       !dc ||
-      dc.readyState !==
-        "open"
+      dc.readyState !== "open"
     ) {
       return;
     }
@@ -1171,34 +897,35 @@ export default function Home() {
     try {
       dc.send(
         JSON.stringify({
-          type:
-            "response.cancel"
+          type: "response.cancel",
         })
       );
-    } catch {}
+    } catch (error) {
+      console.error(
+        "response.cancel:",
+        error
+      );
+    }
 
     responseActiveRef.current =
       false;
   }
 
+  /*
+   * Backend V6 cevabını yalnızca
+   * seslendiren Realtime turn.
+   */
+  function speakRealtime(content) {
+    const clean = String(
+      content || ""
+    ).trim();
 
-  function speakRealtime(
-    content
-  ) {
-    const clean =
-      String(
-        content ||
-        ""
-      ).trim();
-
-    const dc =
-      dcRef.current;
+    const dc = dcRef.current;
 
     if (
       !clean ||
       !dc ||
-      dc.readyState !==
-        "open"
+      dc.readyState !== "open"
     ) {
       upsertMessage(
         uid("assistant"),
@@ -1215,24 +942,23 @@ export default function Home() {
       cancelRealtimeResponse();
     }
 
-    const messageId =
-      uid(
-        "assistant-live"
-      );
+    const messageId = uid(
+      "assistant-live"
+    );
 
-    currentSpeechRef.current =
-      {
-        messageId,
-        target: clean,
-        transcript: ""
-      };
+    currentSpeechRef.current = {
+      messageId,
+      target: clean,
+      transcript: "",
+      mode: "backend",
+    };
 
     upsertMessage(
       messageId,
       "assistant",
       "",
       {
-        live: true
+        live: true,
       }
     );
 
@@ -1242,57 +968,170 @@ export default function Home() {
 
     dc.send(
       JSON.stringify({
-        type:
-          "response.create",
+        type: "response.create",
 
         response: {
-          output_modalities:
-            ["audio"],
+          output_modalities: [
+            "audio",
+          ],
 
-          instructions:
-            `
-Aşağıdaki metni TÜRKÇE seslendir.
+          instructions: `
+Aşağıdaki HDI Talha cevabını Türkçe seslendir.
 
 Sen Talha'sın.
-Genç yetişkin bir ERKEK dijital asistansın.
 
-Telefon görüşmesinde gerçek bir insan müşteri temsilcisi gibi konuş.
+Genç yetişkin ERKEK bir dijital asistansın.
 
-Doğal, sıcak, kendinden emin ve akıcı ol.
+Profesyonel ama doğal bir müşteri temsilcisi gibi konuş.
 
-IVR veya kurumsal anons sesi kullanma.
+Kullanıcının jargonunu TAKLİT ETME.
 
-Normal müşteri temsilcisi temposundan hafif hızlı konuş.
+ASLA şu hitapları kullanma:
+- abi
+- kanka
+- bro
+- reis
+- dostum
+- kardeşim
+
+IVR veya kurumsal anons gibi konuşma.
+
+Rahat, net, sıcak ve kendinden emin ol.
+
+Normal konuşma hızından hafif hızlı konuş.
 
 Gereksiz duraklama yapma.
 
-Her kelimeyi ayrı ayrı vurgulama.
+Her kelimeyi ayrı vurgulama.
 
 Cümle sonlarını uzatma.
 
-Yapay nezaket tonuna girme.
-
 Metindeki bilgiyi değiştirme.
+
 Yeni bilgi ekleme.
+
 Bilgi çıkarma.
 
 SESLENDİRİLECEK METİN:
 
 ${clean}
-`.trim()
-        }
+`.trim(),
+        },
       })
     );
   }
 
-
-  function handleRealtimeEvent(
-    event
+  /*
+   * Selam / nasılsın / ses geliyor mu
+   * gibi business tool gerektirmeyen
+   * basit konuşmalara doğrudan
+   * Realtime cevap verir.
+   *
+   * Böylece Sol planner + composer
+   * zinciri beklenmez.
+   */
+  function realtimeSmallTalk(
+    userText
   ) {
-    switch (
-      event.type
-    ) {
+    const dc = dcRef.current;
 
+    if (
+      !dc ||
+      dc.readyState !== "open"
+    ) {
+      return false;
+    }
+
+    if (
+      responseActiveRef.current
+    ) {
+      cancelRealtimeResponse();
+    }
+
+    const messageId = uid(
+      "assistant-live"
+    );
+
+    currentSpeechRef.current = {
+      messageId,
+      target: "",
+      transcript: "",
+      mode: "smalltalk",
+    };
+
+    upsertMessage(
+      messageId,
+      "assistant",
+      "",
+      {
+        live: true,
+      }
+    );
+
+    setVoiceStatus(
+      "Talha konuşuyor"
+    );
+
+    dc.send(
+      JSON.stringify({
+        type: "response.create",
+
+        response: {
+          output_modalities: [
+            "audio",
+          ],
+
+          instructions: `
+Kullanıcının son söylediği şey:
+
+"${userText}"
+
+Bu yalnızca gündelik ve güvenli bir konuşma turudur.
+
+HDI müşteri verisi veya iş kuralı gerektirmiyor.
+
+Türkçe cevap ver.
+
+EN FAZLA 1 kısa cümle kullan.
+
+Sen Talha'sın.
+
+Genç yetişkin ERKEK bir dijital asistansın.
+
+Sıcak ama profesyonel ol.
+
+Kullanıcının konuşma tarzını veya jargonunu taklit etme.
+
+ASLA şu hitapları kullanma:
+- abi
+- kanka
+- bro
+- reis
+- dostum
+- kardeşim
+
+"Sesim geliyor mu?" veya benzeri bir soruysa sadece duyduğunu kısa ve doğal biçimde söyle.
+
+Teknik sebep uydurma.
+
+Cihaz veya uygulama ayarları hakkında kanıtsız teşhis yapma.
+
+"Nasılsın?" denirse doğal ve kısa karşılık ver.
+
+Hemen cevap ver.
+`.trim(),
+        },
+      })
+    );
+
+    return true;
+  }
+
+  function handleRealtimeEvent(event) {
+    switch (event.type) {
+      /*
+       * Kullanıcı konuşmaya başladı.
+       */
       case "input_audio_buffer.speech_started": {
         setVoiceStatus(
           "Dinliyorum"
@@ -1301,7 +1140,9 @@ ${clean}
         break;
       }
 
-
+      /*
+       * Kullanıcı sustu / VAD turn kapattı.
+       */
       case "input_audio_buffer.speech_stopped": {
         setVoiceStatus(
           "Anlıyorum"
@@ -1310,54 +1151,45 @@ ${clean}
         break;
       }
 
-
       /*
-       * KULLANICI CANLI TRANSCRIPT
+       * KULLANICI PARTIAL TRANSCRIPT
        */
       case "conversation.item.input_audio_transcription.delta": {
         const itemId =
           event.item_id;
 
         let messageId =
-          userItemMapRef
-            .current
-            .get(
-              itemId
-            );
+          userItemMapRef.current.get(
+            itemId
+          );
 
-        if (
-          !messageId
-        ) {
+        if (!messageId) {
           messageId =
             `user-live-${itemId}`;
 
-          userItemMapRef
-            .current
-            .set(
-              itemId,
-              messageId
-            );
+          userItemMapRef.current.set(
+            itemId,
+            messageId
+          );
 
           upsertMessage(
             messageId,
             "user",
             "",
             {
-              live: true
+              live: true,
             }
           );
         }
 
-        if (
-          event.delta
-        ) {
+        if (event.delta) {
           upsertMessage(
             messageId,
             "user",
             event.delta,
             {
               append: true,
-              live: true
+              live: true,
             }
           );
         }
@@ -1365,29 +1197,28 @@ ${clean}
         break;
       }
 
-
       /*
-       * FINAL STT.
+       * KULLANICI FINAL TRANSCRIPT
        *
-       * Partial text ne yazmış olursa olsun
-       * final transcript ile REPLACE ediyoruz.
+       * Partial text final transcript ile
+       * tamamen replace edilir.
        */
       case "conversation.item.input_audio_transcription.completed": {
         const itemId =
           event.item_id;
 
-        const finalText =
-          String(
-            event.transcript ||
-            ""
-          ).trim();
+        const finalText = String(
+          event.transcript || ""
+        ).trim();
+
+        if (!finalText) {
+          break;
+        }
 
         const messageId =
-          userItemMapRef
-            .current
-            .get(
-              itemId
-            ) ||
+          userItemMapRef.current.get(
+            itemId
+          ) ||
           `user-live-${itemId}`;
 
         upsertMessage(
@@ -1395,7 +1226,7 @@ ${clean}
           "user",
           finalText,
           {
-            live: false
+            live: false,
           }
         );
 
@@ -1403,28 +1234,44 @@ ${clean}
           messageId
         );
 
+        /*
+         * Aynı Realtime item iki kere
+         * completed event üretirse
+         * ikinciyi tamamen yok say.
+         */
         if (
-          finalText &&
-          !processedItemsRef
-            .current
-            .has(
-              itemId
-            )
+          processedItemsRef.current.has(
+            itemId
+          )
         ) {
-          processedItemsRef
-            .current
-            .add(
-              itemId
-            );
+          break;
+        }
 
+        processedItemsRef.current.add(
+          itemId
+        );
+
+        /*
+         * Small talk ise direkt Realtime.
+         */
+        if (
+          isRealtimeSmallTalk(
+            finalText
+          )
+        ) {
+          realtimeSmallTalk(
+            finalText
+          );
+        } else {
+          /*
+           * Business / HDI turn ise
+           * V6 backend'e gider.
+           */
           submitTurn(
             finalText,
             {
-              source:
-                "voice",
-
-              displayUser:
-                false
+              source: "voice",
+              displayUser: false,
             }
           );
         }
@@ -1432,7 +1279,9 @@ ${clean}
         break;
       }
 
-
+      /*
+       * Talha'nın ses cevabı oluşturuldu.
+       */
       case "response.created": {
         responseActiveRef.current =
           true;
@@ -1444,9 +1293,8 @@ ${clean}
         break;
       }
 
-
       /*
-       * TALHA CANLI TRANSCRIPT
+       * TALHA CANLI OUTPUT TRANSCRIPT
        */
       case "response.output_audio_transcript.delta": {
         const current =
@@ -1468,44 +1316,54 @@ ${clean}
           event.delta,
           {
             append: true,
-            live: true
+            live: true,
           }
         );
 
         break;
       }
 
-
+      /*
+       * TALHA FINAL OUTPUT TRANSCRIPT
+       */
       case "response.output_audio_transcript.done": {
         const current =
           currentSpeechRef.current;
 
-        if (
-          !current.messageId
-        ) {
+        if (!current.messageId) {
           break;
         }
 
-        const finalText =
-          String(
-            event.transcript ||
+        const finalText = String(
+          event.transcript ||
             current.transcript ||
             current.target ||
             ""
-          ).trim();
+        ).trim();
 
-        upsertMessage(
-          current.messageId,
-          "assistant",
-          finalText,
-          {
-            live: false
-          }
-        );
+        if (finalText) {
+          upsertMessage(
+            current.messageId,
+            "assistant",
+            finalText,
+            {
+              live: false,
+            }
+          );
+
+          /*
+           * Realtime small talk backend
+           * history'sine girmemişti.
+           *
+           * İstersek burada sadece
+           * assistant cevabını eklemiyoruz;
+           * Realtime kendi conversation
+           * state'ini zaten tutuyor.
+           */
+        }
 
         break;
       }
-
 
       case "response.done": {
         responseActiveRef.current =
@@ -1514,114 +1372,158 @@ ${clean}
         const current =
           currentSpeechRef.current;
 
+        /*
+         * Transcript event hiç gelmezse
+         * backend cevabını fallback olarak
+         * göster.
+         */
         if (
           current.messageId &&
-          !current.transcript
+          !current.transcript &&
+          current.target
         ) {
           upsertMessage(
             current.messageId,
             "assistant",
-            current.target
+            current.target,
+            {
+              live: false,
+            }
           );
         }
 
-        currentSpeechRef.current =
-          {
-            messageId: null,
-            target: "",
-            transcript: ""
-          };
+        if (
+          current.messageId
+        ) {
+          removeLiveFlag(
+            current.messageId
+          );
+        }
 
-        setVoiceStatus(
-          "Dinliyorum"
-        );
+        currentSpeechRef.current = {
+          messageId: null,
+          target: "",
+          transcript: "",
+          mode: null,
+        };
+
+        if (
+          voiceConnectedRef.current
+        ) {
+          setVoiceStatus(
+            "Dinliyorum"
+          );
+        }
 
         break;
       }
-
 
       case "error": {
         console.error(
-          "Realtime:",
+          "Realtime event error:",
           event
         );
 
+        responseActiveRef.current =
+          false;
+
         setVoiceError(
-          event.error
-            ?.message ||
-          "Ses bağlantısında hata oluştu."
+          event.error?.message ||
+            "Ses bağlantısında hata oluştu."
         );
+
+        if (
+          voiceConnectedRef.current
+        ) {
+          setVoiceStatus(
+            "Dinliyorum"
+          );
+        }
 
         break;
       }
-
 
       default:
         break;
     }
   }
 
-
   async function startVoice() {
     if (
-      voiceConnected
+      voiceConnectedRef.current
     ) {
       return;
     }
 
     setVoiceError("");
+
     setVoiceStatus(
       "Bağlanıyor"
     );
 
+    /*
+     * Yeni bağlantıda event cache'lerini temizle.
+     */
+    processedItemsRef.current =
+      new Set();
+
+    userItemMapRef.current =
+      new Map();
+
+    responseActiveRef.current =
+      false;
+
+    currentSpeechRef.current = {
+      messageId: null,
+      target: "",
+      transcript: "",
+      mode: null,
+    };
+
     try {
+      /*
+       * 1 — Ephemeral Realtime token
+       */
       const tokenResponse =
         await fetch(
           "/api/realtime/session",
           {
-            method:
-              "POST"
+            method: "POST",
           }
         );
 
       const tokenData =
         await tokenResponse.json();
 
-      if (
-        !tokenResponse.ok
-      ) {
+      if (!tokenResponse.ok) {
         throw new Error(
           tokenData.error ||
-          "Ses oturumu oluşturulamadı."
+            "Ses oturumu oluşturulamadı."
         );
       }
 
       const secret =
         tokenData.value;
 
-      if (
-        !secret
-      ) {
+      if (!secret) {
         throw new Error(
           "Geçici Realtime anahtarı alınamadı."
         );
       }
 
+      /*
+       * 2 — Mikrofon
+       */
       const stream =
-        await navigator
-          .mediaDevices
-          .getUserMedia({
+        await navigator.mediaDevices.getUserMedia(
+          {
             audio: {
-              echoCancellation:
-                true,
-
-              noiseSuppression:
-                true,
-
-              autoGainControl:
-                true
-            }
-          });
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+            },
+          }
+        );
 
       microphoneRef.current =
         stream;
@@ -1632,29 +1534,43 @@ ${clean}
           setCustomerWave
         );
 
+      /*
+       * 3 — PeerConnection
+       */
       const pc =
         new RTCPeerConnection();
 
       pcRef.current =
         pc;
 
+      /*
+       * JSX içindeki gerçek audio elementi.
+       */
       const audio =
-        new Audio();
+        remoteAudioRef.current;
 
-      audio.autoplay =
-        true;
+      if (!audio) {
+        throw new Error(
+          "Ses çıkış elementi hazırlanamadı."
+        );
+      }
 
-      audio.playsInline =
-        true;
+      audio.autoplay = true;
+      audio.playsInline = true;
+      audio.muted = false;
+      audio.volume = 1;
 
-      remoteAudioRef.current =
-        audio;
-
+      /*
+       * Realtime'ın remote audio track'i.
+       */
       pc.ontrack =
-        (trackEvent) => {
+        async (trackEvent) => {
           const remoteStream =
-            trackEvent
-              .streams[0];
+            trackEvent.streams?.[0];
+
+          if (!remoteStream) {
+            return;
+          }
 
           audio.srcObject =
             remoteStream;
@@ -1667,22 +1583,37 @@ ${clean}
               setTalhaWave
             );
 
-          audio
-            .play()
-            .catch(
-              () => {}
+          try {
+            await audio.play();
+          } catch (error) {
+            console.error(
+              "Remote audio play:",
+              error
             );
+
+            setVoiceError(
+              "Talha'nın sesi tarayıcı tarafından oynatılamadı."
+            );
+          }
         };
 
       const micTrack =
-        stream
-          .getAudioTracks()[0];
+        stream.getAudioTracks()[0];
+
+      if (!micTrack) {
+        throw new Error(
+          "Mikrofon ses kanalı bulunamadı."
+        );
+      }
 
       pc.addTrack(
         micTrack,
         stream
       );
 
+      /*
+       * 4 — Realtime JSON event channel
+       */
       const dc =
         pc.createDataChannel(
           "oai-events"
@@ -1695,21 +1626,26 @@ ${clean}
         "message",
         (message) => {
           try {
-            handleRealtimeEvent(
+            const event =
               JSON.parse(
                 message.data
-              )
+              );
+
+            handleRealtimeEvent(
+              event
             );
-          } catch (
-            error
-          ) {
+          } catch (error) {
             console.error(
+              "Realtime event parse:",
               error
             );
           }
         }
       );
 
+      /*
+       * 5 — WebRTC SDP handshake
+       */
       const offer =
         await pc.createOffer();
 
@@ -1721,27 +1657,27 @@ ${clean}
         await fetch(
           "https://api.openai.com/v1/realtime/calls",
           {
-            method:
-              "POST",
+            method: "POST",
 
             headers: {
               Authorization:
                 `Bearer ${secret}`,
 
               "Content-Type":
-                "application/sdp"
+                "application/sdp",
             },
 
-            body:
-              offer.sdp
+            body: offer.sdp,
           }
         );
 
-      if (
-        !sdpResponse.ok
-      ) {
+      if (!sdpResponse.ok) {
+        const detail =
+          await sdpResponse.text();
+
         throw new Error(
-          await sdpResponse.text()
+          detail ||
+            "Realtime bağlantısı kurulamadı."
         );
       }
 
@@ -1749,81 +1685,83 @@ ${clean}
         await sdpResponse.text();
 
       await pc.setRemoteDescription({
-        type:
-          "answer",
-
-        sdp:
-          answer
+        type: "answer",
+        sdp: answer,
       });
 
       await waitForDataChannel(
         dc
       );
 
-      setVoiceConnected(
-        true
-      );
+      /*
+       * REF state'ten ÖNCE set edilir.
+       *
+       * Böylece callback eski React
+       * render'ını tutsa bile ses cevabı
+       * kaybolmaz.
+       */
+      voiceConnectedRef.current =
+        true;
+
+      setVoiceConnected(true);
 
       setVoiceStatus(
         "Dinliyorum"
       );
 
       /*
-       * Uzun IVR anonsu YOK.
+       * Uzun IVR anonsu yok.
+       * Kullanıcı bağlantının hazır olduğunu
+       * kısa biçimde duyar.
        */
       speakRealtime(
         "Buradayım, sizi dinliyorum."
       );
-
-    } catch (
-      error
-    ) {
+    } catch (error) {
       console.error(
+        "startVoice:",
         error
       );
 
       setVoiceError(
         error.message ||
-        "Sesli görüşme başlatılamadı."
+          "Sesli görüşme başlatılamadı."
       );
 
       closeVoice();
     }
   }
 
-
   function closeVoice() {
+    /*
+     * Önce REF kapanır.
+     */
+    voiceConnectedRef.current =
+      false;
+
     cancelRealtimeResponse();
 
-    if (
-      dcRef.current
-    ) {
+    if (dcRef.current) {
       try {
         dcRef.current.close();
       } catch {}
 
-      dcRef.current =
-        null;
+      dcRef.current = null;
     }
 
-    if (
-      pcRef.current
-    ) {
+    if (pcRef.current) {
       try {
         pcRef.current.close();
       } catch {}
 
-      pcRef.current =
-        null;
+      pcRef.current = null;
     }
 
     if (
       microphoneRef.current
     ) {
-      for (
-        const track of
-        microphoneRef.current.getTracks()
-      ) {
+      for (const track of
+        microphoneRef.current.getTracks()) {
         track.stop();
       }
 
@@ -1831,6 +1769,10 @@ ${clean}
         null;
     }
 
+    /*
+     * remoteAudioRef artık DOM ref.
+     * NULL YAPMIYORUZ.
+     */
     if (
       remoteAudioRef.current
     ) {
@@ -1840,16 +1782,10 @@ ${clean}
         remoteAudioRef.current.srcObject =
           null;
       } catch {}
-
-      remoteAudioRef.current =
-        null;
     }
 
-    localMeterCleanupRef
-      .current?.();
-
-    remoteMeterCleanupRef
-      .current?.();
+    localMeterCleanupRef.current?.();
+    remoteMeterCleanupRef.current?.();
 
     localMeterCleanupRef.current =
       null;
@@ -1860,27 +1796,24 @@ ${clean}
     responseActiveRef.current =
       false;
 
-    setVoiceConnected(
-      false
-    );
+    currentSpeechRef.current = {
+      messageId: null,
+      target: "",
+      transcript: "",
+      mode: null,
+    };
 
-    setVoiceStatus(
-      "Kapalı"
-    );
+    setVoiceConnected(false);
+    setVoiceStatus("Kapalı");
 
     setCustomerWave(
-      Array(22).fill(
-        5
-      )
+      Array(22).fill(5)
     );
 
     setTalhaWave(
-      Array(22).fill(
-        5
-      )
+      Array(22).fill(5)
     );
   }
-
 
   /*
    * =========================
@@ -1891,25 +1824,32 @@ ${clean}
   async function resetConversation() {
     closeVoice();
 
-    conversationRef.current =
-      [];
+    conversationRef.current = [];
+    sessionRef.current = {};
+    uploadedFilesRef.current = [];
 
-    sessionRef.current =
-      {};
+    processedItemsRef.current =
+      new Set();
 
-    uploadedFilesRef.current =
-      [];
+    userItemMapRef.current =
+      new Map();
+
+    lastTurnRef.current = {
+      key: "",
+      time: 0,
+    };
+
+    busyRef.current = false;
 
     setMessages([]);
     setSession({});
     setUploadedFiles([]);
+
     syncUi(
       EMPTY_UI
     );
 
-    setMeta(
-      null
-    );
+    setMeta(null);
 
     setText("");
     setActivity("");
@@ -1918,60 +1858,59 @@ ${clean}
     await bootstrap();
   }
 
+  /*
+   * =========================
+   * DERIVED UI STATE
+   * =========================
+   */
 
   const verification =
-    session
-      ?.verification ||
-    {};
+    session?.verification || {};
 
   const evidence =
-    verification
-      ?.evidenceCandidates ||
+    verification?.evidenceCandidates ||
     {};
 
   const verificationStatus =
-    verification
-      ?.status ||
+    verification?.status ||
     "UNVERIFIED";
 
   const matchedCount =
-    verification
-      ?.matchedCount ||
-    0;
+    verification?.matchedCount || 0;
 
   const activeClaim =
-    session
-      ?.activeClaimNo ||
-    null;
+    session?.activeClaimNo || null;
 
   const activeRole =
-    session
-      ?.role ||
-    null;
+    session?.role || null;
 
   const intents =
-    meta
-      ?.plan
-      ?.intents ||
-    [];
+    meta?.plan?.intents || [];
 
   const voiceCustomerActive =
     voiceConnected &&
-    voiceStatus ===
-      "Dinliyorum";
+    voiceStatus === "Dinliyorum";
 
   const voiceTalhaActive =
     voiceConnected &&
-    voiceStatus ===
-      "Talha konuşuyor";
-
+    voiceStatus === "Talha konuşuyor";
 
   return (
     <main className="workspace">
+      {/*
+       * GERÇEK WEBRTC AUDIO OUTPUT.
+       * CSS ile görünmez olacak.
+       */}
+      <audio
+        ref={remoteAudioRef}
+        autoPlay
+        playsInline
+        className="remoteAudio"
+      />
 
-      {/* LEFT RAIL */}
+      {/* ================= LEFT RAIL ================= */}
+
       <aside className="rail">
-
         <div className="railBrand">
           <div className="hdiMark">
             HDI
@@ -1988,9 +1927,7 @@ ${clean}
           </div>
         </div>
 
-
         <div className="railDivider" />
-
 
         <button
           className={`voiceMainButton ${
@@ -2017,9 +1954,7 @@ ${clean}
           </span>
         </button>
 
-
         <div className="railStatus">
-
           <span
             className={`statusDot ${
               voiceConnected
@@ -2041,12 +1976,9 @@ ${clean}
                 : "Ses kapalı"}
             </small>
           </div>
-
         </div>
 
-
         <nav className="railNav">
-
           <button className="active">
             <span>✦</span>
             Görüşme
@@ -2072,9 +2004,7 @@ ${clean}
             <span>↻</span>
             Yeni Oturum
           </button>
-
         </nav>
-
 
         <div className="railBottom">
           <span className="modelTag">
@@ -2085,15 +2015,12 @@ ${clean}
             GPT-5.6 Sol
           </small>
         </div>
-
       </aside>
 
+      {/* ================= CENTER ================= */}
 
-      {/* CENTER */}
       <section className="conversation">
-
         <header className="conversationHeader">
-
           <div>
             <span className="eyebrow">
               HDI SIGORTA · AI ASSISTANT
@@ -2104,9 +2031,7 @@ ${clean}
             </h1>
           </div>
 
-
           <div className="headerActions">
-
             <div className="secureState">
               <span className="secureIcon">
                 ◈
@@ -2122,15 +2047,12 @@ ${clean}
                 </b>
               </div>
             </div>
-
           </div>
-
         </header>
 
+        {/* ================= AUDIO ================= */}
 
-        {/* LIVE AUDIO */}
         <div className="audioDeck">
-
           <Waveform
             label="SİZ"
             sublabel={
@@ -2151,7 +2073,6 @@ ${clean}
           />
 
           <div className="audioCenter">
-
             <div
               className={`voiceOrb ${
                 voiceConnected
@@ -2173,7 +2094,6 @@ ${clean}
                 ? voiceStatus
                 : "Chat modu"}
             </span>
-
           </div>
 
           <Waveform
@@ -2193,9 +2113,7 @@ ${clean}
             }
             variant="talha"
           />
-
         </div>
-
 
         {voiceError && (
           <div className="inlineError">
@@ -2207,27 +2125,23 @@ ${clean}
           </div>
         )}
 
-
         {activity && (
           <div className="activityLine">
             <span className="activitySpinner" />
+
             {activity}
           </div>
         )}
 
+        {/* ================= TIMELINE ================= */}
 
         <div className="timeline">
-
           {messages.map(
             (message) => (
-
               <div
-                key={
-                  message.id
-                }
+                key={message.id}
                 className={`messageRow ${message.role}`}
               >
-
                 {message.role ===
                   "assistant" && (
                   <div className="talhaAvatar">
@@ -2235,9 +2149,7 @@ ${clean}
                   </div>
                 )}
 
-
                 <div className="messageStack">
-
                   <div className="messageMeta">
                     {message.role ===
                     "assistant"
@@ -2251,7 +2163,6 @@ ${clean}
                     )}
                   </div>
 
-
                   <div
                     className={`messageBubble ${
                       message.live
@@ -2262,89 +2173,78 @@ ${clean}
                     {message.content ||
                       "…"}
 
-
                     {message.live && (
                       <span className="liveCursor" />
                     )}
                   </div>
 
-
                   {Array.isArray(
                     message.files
                   ) &&
-                    message.files.length >
+                    message.files
+                      .length >
                       0 && (
+                      <div className="messageFiles">
+                        {message.files.map(
+                          (file) => (
+                            <a
+                              key={
+                                file.id
+                              }
+                              className="attachmentCard userAttachment"
+                              href={
+                                file.localUrl ||
+                                "#"
+                              }
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              <span className="fileIcon">
+                                ↑
+                              </span>
 
-                    <div className="messageFiles">
+                              <span className="fileBody">
+                                <b>
+                                  {file.name}
+                                </b>
 
-                      {message.files.map(
-                        (file) => (
+                                <small>
+                                  {formatBytes(
+                                    file.size
+                                  )}{" "}
+                                  ·
+                                  Yüklendi
+                                </small>
+                              </span>
 
-                          <a
-                            key={
-                              file.id
-                            }
-                            className="attachmentCard userAttachment"
-                            href={
-                              file.localUrl ||
-                              "#"
-                            }
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            <span className="fileIcon">
-                              ↑
-                            </span>
-
-                            <span className="fileBody">
-                              <b>
-                                {file.name}
-                              </b>
-
-                              <small>
-                                {formatBytes(
-                                  file.size
-                                )}{" "}
-                                · Yüklendi
-                              </small>
-                            </span>
-
-                            <span className="fileState">
-                              ✓
-                            </span>
-                          </a>
-
-                        )
-                      )}
-
-                    </div>
-                  )}
-
+                              <span className="fileState">
+                                ✓
+                              </span>
+                            </a>
+                          )
+                        )}
+                      </div>
+                    )}
                 </div>
-
               </div>
             )
           )}
 
+          {/* ================= QUICK ACTIONS ================= */}
 
-          {/* QUICK ACTIONS */}
-          {ui.quickActions
-            ?.length > 0 && (
-
+          {ui.quickActions?.length >
+            0 && (
             <div className="smartActions">
-
               <div className="smartActionLabel">
                 Hızlı seçim
               </div>
 
               <div className="smartActionButtons">
-
                 {ui.quickActions.map(
                   (
                     action,
                     index
                   ) => (
-
                     <button
                       key={`${action.value}-${index}`}
                       onClick={() =>
@@ -2355,22 +2255,17 @@ ${clean}
                     >
                       {action.label}
                     </button>
-
                   )
                 )}
-
               </div>
-
             </div>
           )}
 
+          {/* ================= CLAIM CARDS ================= */}
 
-          {/* CLAIM CARDS */}
-          {ui.claimCards
-            ?.length > 0 && (
-
+          {ui.claimCards?.length >
+            0 && (
             <div className="richBlock">
-
               <div className="richBlockTitle">
                 <div>
                   <span className="eyebrow">
@@ -2390,12 +2285,9 @@ ${clean}
                 </span>
               </div>
 
-
               <div className="claimGrid">
-
                 {ui.claimCards.map(
                   (claim) => (
-
                     <button
                       key={
                         claim.id
@@ -2408,7 +2300,6 @@ ${clean}
                         )
                       }
                     >
-
                       <div className="claimCardTop">
                         <span className="claimDate">
                           {claim.title}
@@ -2430,26 +2321,19 @@ ${clean}
                       <div className="claimStatus">
                         {claim.status}
                       </div>
-
                     </button>
-
                   )
                 )}
-
               </div>
-
             </div>
           )}
 
+          {/* ================= TALHA DOCUMENTS ================= */}
 
-          {/* BOT DOCUMENT CARDS */}
-          {ui.documentCards
-            ?.length > 0 && (
-
+          {ui.documentCards?.length >
+            0 && (
             <div className="richBlock documentsBlock">
-
               <div className="richBlockTitle">
-
                 <div>
                   <span className="eyebrow">
                     TALHA'DAN DOSYALAR
@@ -2463,15 +2347,11 @@ ${clean}
                 <span className="verifiedMini">
                   ✓ KVKK
                 </span>
-
               </div>
 
-
               <div className="documentGrid">
-
                 {ui.documentCards.map(
                   (document) => (
-
                     <a
                       key={
                         document.id
@@ -2492,108 +2372,80 @@ ${clean}
 
                         <small>
                           Dosya{" "}
-                          {document.claimNo}{" "}
-                          · Güvenli paylaşım
+                          {
+                            document.claimNo
+                          }{" "}
+                          · Güvenli
+                          paylaşım
                         </small>
                       </div>
 
                       <span>
                         ↓
                       </span>
-
                     </a>
-
                   )
                 )}
-
               </div>
-
             </div>
           )}
 
-
-          <div
-            ref={
-              bottomRef
-            }
-          />
-
+          <div ref={bottomRef} />
         </div>
 
+        {/* ================= COMPOSER ================= */}
 
-        {/* COMPOSER */}
         <div className="composerDock">
-
           {uploadedFiles.length >
             0 && (
-
             <div className="uploadTray">
-
               {uploadedFiles
                 .slice(-3)
                 .map(
                   (file) => (
+                    <div
+                      key={
+                        file.id
+                      }
+                      className="uploadChip"
+                    >
+                      <span>
+                        ✓
+                      </span>
 
-                  <div
-                    key={
-                      file.id
-                    }
-                    className="uploadChip"
-                  >
-                    <span>
-                      ✓
-                    </span>
-
-                    <b>
-                      {file.name}
-                    </b>
-                  </div>
-
-                )
-              )}
-
+                      <b>
+                        {file.name}
+                      </b>
+                    </div>
+                  )
+                )}
             </div>
           )}
 
-
           <form
             className="smartComposer"
-            onSubmit={
-              (event) => {
-                event.preventDefault();
+            onSubmit={(event) => {
+              event.preventDefault();
 
-                submitTurn(
-                  text
-                );
-              }
-            }
+              submitTurn(text);
+            }}
           >
-
             <input
-              ref={
-                fileInputRef
-              }
+              ref={fileInputRef}
               type="file"
               hidden
               multiple
               accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
-              onChange={
-                handleFiles
-              }
+              onChange={handleFiles}
             />
-
 
             <button
               type="button"
               className="composerTool"
               onClick={() =>
-                fileInputRef
-                  .current
-                  ?.click()
+                fileInputRef.current?.click()
               }
-              disabled={
-                uploading
-              }
+              disabled={uploading}
               title="Dosya yükle"
             >
               {uploading
@@ -2601,34 +2453,26 @@ ${clean}
                 : "+"}
             </button>
 
-
             <textarea
-              value={
-                text
+              value={text}
+              onChange={(event) =>
+                setText(
+                  event.target.value
+                )
               }
-              onChange={
-                (event) =>
-                  setText(
-                    event
-                      .target
-                      .value
-                  )
-              }
-              onKeyDown={
-                (event) => {
-                  if (
-                    event.key ===
-                      "Enter" &&
-                    !event.shiftKey
-                  ) {
-                    event.preventDefault();
+              onKeyDown={(event) => {
+                if (
+                  event.key ===
+                    "Enter" &&
+                  !event.shiftKey
+                ) {
+                  event.preventDefault();
 
-                    submitTurn(
-                      text
-                    );
-                  }
+                  submitTurn(
+                    text
+                  );
                 }
-              }
+              }}
               placeholder={
                 voiceConnected
                   ? "Konuşabilir veya buradan yazabilirsiniz…"
@@ -2636,7 +2480,6 @@ ${clean}
               }
               rows={1}
             />
-
 
             <button
               type="button"
@@ -2655,7 +2498,6 @@ ${clean}
               ◉
             </button>
 
-
             <button
               type="submit"
               className="composerSend"
@@ -2666,34 +2508,26 @@ ${clean}
             >
               ↑
             </button>
-
           </form>
-
 
           <div className="composerHint">
             <span>
               AI destekli görüşme
             </span>
 
-            <span>
-              ·
-            </span>
+            <span>·</span>
 
             <span>
               Sesler ve metinler demo amaçlıdır
             </span>
           </div>
-
         </div>
-
       </section>
 
+      {/* ================= RIGHT CONTEXT ================= */}
 
-      {/* RIGHT CONTEXT */}
       <aside className="contextPanel">
-
         <div className="contextHeader">
-
           <div>
             <span className="eyebrow">
               LIVE CONTEXT
@@ -2707,13 +2541,11 @@ ${clean}
           <span className="liveIndicator">
             LIVE
           </span>
-
         </div>
 
+        {/* ================= VERIFICATION ================= */}
 
-        {/* VERIFICATION */}
         <section className="contextSection">
-
           <div className="sectionTitle">
             <span>
               Doğrulama
@@ -2726,9 +2558,7 @@ ${clean}
             />
           </div>
 
-
           <div className="verificationScore">
-
             <div className="scoreRing">
               <span>
                 {matchedCount}
@@ -2754,28 +2584,21 @@ ${clean}
                 Aynı dosyayla eşleşen farklı bilgi tipleri
               </small>
             </div>
-
           </div>
-
 
           {Object.keys(
             evidence
           ).length > 0 && (
-
             <div className="evidenceList">
-
               {Object.entries(
                 evidence
               ).map(
                 ([
                   field,
-                  values
+                  values,
                 ]) => (
-
                   <div
-                    key={
-                      field
-                    }
+                    key={field}
                     className="evidenceRow"
                   >
                     <span>
@@ -2786,48 +2609,31 @@ ${clean}
                     </span>
 
                     <div>
-                      {(
-                        values ||
-                        []
-                      ).map(
-                        (
-                          value
-                        ) => (
-
-                          <b
-                            key={
-                              value
-                            }
-                          >
+                      {(values || []).map(
+                        (value) => (
+                          <b key={value}>
                             {value}
                           </b>
-
                         )
                       )}
                     </div>
                   </div>
-
                 )
               )}
-
             </div>
           )}
-
         </section>
 
+        {/* ================= CONTEXT ================= */}
 
-        {/* IDENTITY */}
         <section className="contextSection">
-
           <div className="sectionTitle">
             <span>
               Görüşme
             </span>
           </div>
 
-
           <div className="contextFacts">
-
             <div>
               <small>
                 Rol
@@ -2838,7 +2644,6 @@ ${clean}
                   "Belirlenmedi"}
               </b>
             </div>
-
 
             <div>
               <small>
@@ -2852,7 +2657,6 @@ ${clean}
               </b>
             </div>
 
-
             <div>
               <small>
                 Kanal
@@ -2864,7 +2668,6 @@ ${clean}
                   : "Chat"}
               </b>
             </div>
-
 
             <div>
               <small>
@@ -2879,15 +2682,12 @@ ${clean}
                   : "—"}
               </b>
             </div>
-
           </div>
-
         </section>
 
+        {/* ================= FILES ================= */}
 
-        {/* FILES */}
         <section className="contextSection">
-
           <div className="sectionTitle">
             <span>
               Dosyalar
@@ -2898,21 +2698,15 @@ ${clean}
             </span>
           </div>
 
-
           {uploadedFiles.length ===
           0 ? (
-
             <div className="emptyContext">
               Henüz müşteri dosyası yüklenmedi.
             </div>
-
           ) : (
-
             <div className="contextFiles">
-
               {uploadedFiles.map(
                 (file) => (
-
                   <div
                     key={
                       file.id
@@ -2935,37 +2729,30 @@ ${clean}
                       </small>
                     </div>
                   </div>
-
                 )
               )}
-
             </div>
           )}
-
         </section>
 
+        {/* ================= OPS ================= */}
 
-        {/* OPS */}
         {showOps && (
           <section className="contextSection opsPanel">
-
             <div className="sectionTitle">
               <span>
                 Operasyon Debug
               </span>
             </div>
 
-
             <div className="opsRows">
-
               <div>
                 <span>
                   Model
                 </span>
 
                 <b>
-                  {meta
-                    ?.model ||
+                  {meta?.model ||
                     "—"}
                 </b>
               </div>
@@ -2976,8 +2763,7 @@ ${clean}
                 </span>
 
                 <b>
-                  {meta
-                    ?.plan
+                  {meta?.plan
                     ?.dialogueAct ||
                     "—"}
                 </b>
@@ -2989,29 +2775,20 @@ ${clean}
                 </span>
 
                 <b>
-                  {(
-                    meta
-                      ?.toolTrace ||
-                    []
-                  )
+                  {(meta?.toolTrace ||
+                    [])
                     .map(
                       (item) =>
                         item.name
                     )
-                    .join(
-                      " → "
-                    ) ||
+                    .join(" → ") ||
                     "—"}
                 </b>
               </div>
-
             </div>
-
           </section>
         )}
-
       </aside>
-
     </main>
   );
 }
