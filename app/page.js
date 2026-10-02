@@ -399,7 +399,7 @@ export default function Home() {
       console.error("Bootstrap:", error);
 
       const greeting =
-        "İyi günler, HDI Sigorta'dan Talha ben. Nasıl yardımcı olabilirim?";
+        "İyi günler, TEST TEST TEST Sigorta'dan Talha ben. Nasıl yardımcı olabilirim? SADECE MOCK DATA İLE ÇALIŞAN DEMO BİR BOTUM :) ";
 
       greetingRef.current = greeting;
 
