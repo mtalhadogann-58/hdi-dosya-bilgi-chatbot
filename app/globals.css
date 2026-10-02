@@ -110,9 +110,7 @@ button {
     blur(18px);
 }
 
-/* ================================
-   TOPBAR
-   ================================ */
+/* TOPBAR */
 
 .topbar {
   min-height: 62px;
@@ -274,9 +272,7 @@ button {
   font-size: 14px;
 }
 
-/* ================================
-   VOICE
-   ================================ */
+/* VOICE */
 
 .voiceStrip {
   margin: 8px 12px 0;
@@ -466,9 +462,7 @@ button {
   }
 }
 
-/* ================================
-   CONTEXT MENU
-   ================================ */
+/* CONTEXT MENU */
 
 .contextMenu {
   margin: 7px 12px 0;
@@ -1117,9 +1111,7 @@ button {
   font-size: 6px;
 }
 
-/* ================================
-   ERROR / ACTIVITY
-   ================================ */
+/* ERROR / ACTIVITY */
 
 .errorBar {
   margin: 5px 12px 0;
@@ -1176,9 +1168,7 @@ button {
   }
 }
 
-/* ================================
-   CONVERSATION
-   ================================ */
+/* CONVERSATION */
 
 .conversation {
   flex: 1;
@@ -1290,7 +1280,8 @@ button {
   font-size: 10px;
 }
 
-.message.assistant .bubble {
+.message.assistant
+.bubble {
   border-top-left-radius: 4px;
 
   border: 1px solid
@@ -1301,7 +1292,8 @@ button {
   background: #f1f5f3;
 }
 
-.message.user .bubble {
+.message.user
+.bubble {
   border-top-right-radius: 4px;
 
   color: #fff;
@@ -1644,9 +1636,315 @@ button {
   font-size: 6px;
 }
 
-/* ================================
-   COMPOSER
-   ================================ */
+/* VERIFICATION ASSISTANT */
+
+.verificationAssistant {
+  margin-bottom: 7px;
+
+  padding: 8px 9px;
+
+  border: 1px solid
+    #cfddd5;
+
+  border-radius: 12px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #f7fbf9,
+      #eef6f2
+    );
+
+  box-shadow:
+    0 5px 16px
+    rgba(28, 58, 41, 0.035);
+}
+
+.verificationAssistHead {
+  display: flex;
+
+  align-items: center;
+
+  gap: 8px;
+}
+
+.verificationProgress {
+  width: 36px;
+  height: 36px;
+
+  flex:
+    0 0 36px;
+
+  border-radius: 10px;
+
+  display: flex;
+
+  align-items: baseline;
+
+  justify-content: center;
+
+  padding-top: 8px;
+
+  color: #fff;
+
+  background:
+    linear-gradient(
+      145deg,
+      #0a9d59,
+      #06703f
+    );
+
+  box-shadow:
+    0 5px 12px
+    rgba(7, 128, 73, 0.14);
+}
+
+.verificationProgress strong {
+  font-size: 12px;
+
+  line-height: 1;
+}
+
+.verificationProgress span {
+  margin-left: 1px;
+
+  font-size: 7px;
+
+  opacity: 0.8;
+}
+
+.verificationAssistTitle {
+  min-width: 0;
+
+  flex: 1;
+}
+
+.verificationAssistTitle b {
+  display: block;
+
+  font-size: 8px;
+
+  letter-spacing:
+    -0.01em;
+}
+
+.verificationAssistTitle span {
+  display: block;
+
+  margin-top: 2px;
+
+  color: #6d7c74;
+
+  font-size: 6px;
+}
+
+.verificationDetailButton {
+  border: 1px solid
+    #bfd5c8;
+
+  border-radius: 8px;
+
+  padding: 5px 7px;
+
+  color: #08633b;
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.82
+    );
+
+  font-size: 6px;
+
+  font-weight: 800;
+}
+
+.verificationAssistBody {
+  margin-top: 7px;
+
+  padding-top: 7px;
+
+  border-top: 1px solid
+    rgba(
+      198,
+      216,
+      205,
+      0.72
+    );
+}
+
+.verificationRoleLine {
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  gap: 12px;
+}
+
+.verificationRoleLine > span {
+  color: #4e5f56;
+
+  font-size: 6px;
+
+  font-weight: 800;
+}
+
+.verificationRoleLine small {
+  color: #698076;
+
+  font-size: 6px;
+}
+
+.verificationRoleLine small b {
+  color: #075f39;
+}
+
+.verificationAssistFields {
+  margin-top: 5px;
+
+  display: flex;
+
+  flex-wrap: wrap;
+
+  gap: 4px;
+}
+
+.assistField {
+  height: 23px;
+
+  padding: 0 7px;
+
+  border: 1px solid
+    #d4dfd8;
+
+  border-radius: 999px;
+
+  display: inline-flex;
+
+  align-items: center;
+
+  gap: 4px;
+
+  color: #65736c;
+
+  background: #fff;
+
+  font-size: 6px;
+
+  font-weight: 700;
+}
+
+.assistField i {
+  font-style: normal;
+
+  font-size: 6px;
+}
+
+.assistField.priority {
+  border-color:
+    #b7d7c4;
+
+  color: #087044;
+
+  background: #edf8f2;
+}
+
+.assistField.provided {
+  border-color:
+    #e5cf96;
+
+  color: #816013;
+
+  background: #fff9e9;
+}
+
+.assistField.matched {
+  border-color:
+    #8fc8a5;
+
+  color: #056b3d;
+
+  background: #e8f7ef;
+}
+
+.assistField.matched i {
+  color: #078a50;
+}
+
+.verificationAssistant.verified {
+  min-height: 42px;
+
+  padding: 6px 8px;
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 8px;
+
+  border-color:
+    #a9d0b9;
+
+  background:
+    linear-gradient(
+      135deg,
+      #edf9f2,
+      #f8fcfa
+    );
+}
+
+.verificationCompactIcon {
+  width: 28px;
+  height: 28px;
+
+  flex:
+    0 0 28px;
+
+  border-radius: 8px;
+
+  display: grid;
+
+  place-items: center;
+
+  color: #fff;
+
+  background:
+    var(--green);
+
+  font-size: 9px;
+
+  font-weight: 900;
+}
+
+.verificationCompactText {
+  min-width: 0;
+
+  flex: 1;
+}
+
+.verificationCompactText b {
+  display: block;
+
+  color: #075f39;
+
+  font-size: 8px;
+}
+
+.verificationCompactText span {
+  display: block;
+
+  margin-top: 1px;
+
+  color: #6d7c74;
+
+  font-size: 6px;
+}
+
+/* COMPOSER */
 
 .composerDock {
   padding: 7px 12px 8px;
@@ -1654,7 +1952,13 @@ button {
   border-top: 1px solid
     var(--line);
 
-  background: #fff;
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.97
+    );
 }
 
 .composer {
@@ -1737,7 +2041,8 @@ button {
 .micButton.active {
   color: #fff;
 
-  background: var(--green);
+  background:
+    var(--green);
 
   box-shadow:
     0 0 0 5px
@@ -1775,9 +2080,7 @@ button {
   font-size: 5px;
 }
 
-/* ================================
-   RESPONSIVE
-   ================================ */
+/* RESPONSIVE */
 
 @media (max-width: 800px) {
   .workspace {
@@ -1803,7 +2106,8 @@ button {
   }
 
   .waveBox {
-    grid-template-columns: 1fr;
+    grid-template-columns:
+      1fr;
   }
 
   .waveTitle {
@@ -1820,12 +2124,14 @@ button {
   .tagGrid,
   .opsDetail,
   .fileDrawerGrid {
-    grid-template-columns: 1fr;
+    grid-template-columns:
+      1fr;
   }
 
   .tagGrid .wide,
   .opsDetail .wide {
-    grid-column: span 1;
+    grid-column:
+      span 1;
   }
 
   .miniClaimGrid {
@@ -1835,5 +2141,28 @@ button {
 
   .messageBody {
     max-width: 86%;
+  }
+
+  .verificationRoleLine {
+    align-items:
+      flex-start;
+
+    flex-direction:
+      column;
+
+    gap: 3px;
+  }
+
+  .verificationAssistFields {
+    flex-wrap: nowrap;
+
+    overflow-x: auto;
+
+    padding-bottom: 2px;
+  }
+
+  .assistField {
+    flex:
+      0 0 auto;
   }
 }
