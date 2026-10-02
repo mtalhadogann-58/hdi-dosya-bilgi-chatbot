@@ -2,49 +2,38 @@ import OpenAI from "openai";
 
 import {
   applyV6Turn,
-  blankSession
+  blankSession,
 } from "../../../lib/v6Engine";
 
 import {
-  validateTask
+  validateTask,
 } from "../../../lib/taxonomy";
 
 import {
-  OPENING_INSTRUCTIONS,
   PLANNER_INSTRUCTIONS,
-  RESPONSE_INSTRUCTIONS
+  RESPONSE_INSTRUCTIONS,
 } from "../../../lib/prompts";
 
-
-export const runtime =
-  "nodejs";
-
+export const runtime = "nodejs";
 
 const client =
   new OpenAI({
     apiKey:
-      process.env
-        .OPENAI_API_KEY
+      process.env.OPENAI_API_KEY,
   });
 
-
-/*
- * Güncel flagship backend brain.
- */
 const MODEL =
-  process.env
-    .OPENAI_MODEL ||
+  process.env.OPENAI_MODEL ||
   "gpt-5.6-sol";
 
+const SERVICE_TIER =
+  process.env.OPENAI_SERVICE_TIER ||
+  "fast";
 
-function safeJson(
-  text
-) {
+function safeJson(text) {
   try {
     return JSON.parse(
-      String(
-        text || ""
-      )
+      String(text || "")
         .replace(
           /^```json\s*/i,
           ""
@@ -60,12 +49,11 @@ function safeJson(
   }
 }
 
-
 function historyText(
   messages = []
 ) {
   return messages
-    .slice(-24)
+    .slice(-12)
     .map(
       (message) =>
         `${
@@ -78,48 +66,65 @@ function historyText(
     .join("\n");
 }
 
+function generateOpening(
+  clientContext = {}
+) {
+  const hour =
+    Number(
+      clientContext.localHour
+    );
+
+  const salutation =
+    Number.isFinite(hour)
+      ? hour < 11
+        ? "Günaydın"
+        : hour < 18
+        ? "İyi günler"
+        : "İyi akşamlar"
+      : "Merhaba";
+
+  return `${salutation}, HDI Sigorta'dan Talha ben. Nasıl yardımcı olabilirim?`;
+}
 
 function fallbackPlan(
   latest
 ) {
   const text =
-    String(
-      latest || ""
-    ).toLocaleLowerCase(
-      "tr-TR"
-    );
+    String(latest || "")
+      .toLocaleLowerCase(
+        "tr-TR"
+      );
 
   const roleCandidate =
-    /\bsigortal[ıi]y[ıi]m\b/
-      .test(text)
+    /\bsigortal[ıi]y[ıi]m\b/.test(
+      text
+    )
       ? "sigortali"
-
-    : /\bma[gğ]durum\b/
-      .test(text)
+      : /\bma[gğ]durum\b/.test(
+          text
+        )
       ? "magdur"
-
-    : /\bacenteyim\b|\bacente\b/
-      .test(text)
+      : /\bacenteyim\b|\bacente\b/.test(
+          text
+        )
       ? "acente"
-
-    : /\bservisim\b|\bservisten\b/
-      .test(text)
+      : /\bservisim\b|\bservisten\b/.test(
+          text
+        )
       ? "servis"
-
-    : /\beksperim\b|\beksper\b/
-      .test(text)
+      : /\beksperim\b|\beksper\b/.test(
+          text
+        )
       ? "eksper"
-
-    : /\bavukat[ıi]m\b/
-      .test(text)
+      : /\bavukat[ıi]m\b/.test(
+          text
+        )
       ? "avukat"
-
-    : /\bfirma yetkilisiyim\b/
-      .test(text)
+      : /\bfirma yetkilisiyim\b/.test(
+          text
+        )
       ? "firma_yetkilisi"
-
-    : null;
-
+      : null;
 
   return {
     dialogueAct:
@@ -128,27 +133,25 @@ function fallbackPlan(
         : "other",
 
     intents:
-      /(dosya|hasar)/
-        .test(text)
+      /(dosya|hasar)/.test(
+        text
+      )
         ? ["claim_status"]
         : ["general"],
 
     roleCandidate,
 
-    provided:
-      {},
+    provided: {},
 
-    providedCandidates:
-      {},
+    providedCandidates: {},
 
     correction: {
       field: null,
       newValue: null,
-      newValues: []
+      newValues: [],
     },
 
-    unavailableFields:
-      [],
+    unavailableFields: [],
 
     claimReference: {
       claimNo: null,
@@ -156,7 +159,7 @@ function fallbackPlan(
       dateText: null,
       ordinal: null,
       description: null,
-      switchClaim: false
+      switchClaim: false,
     },
 
     userSignal:
@@ -182,118 +185,62 @@ function fallbackPlan(
         "Bilinmiyor",
 
       konu:
-        "Genel bilgi"
-    }
+        "Genel bilgi",
+    },
   };
 }
-
-
-async function generateOpening(
-  clientContext = {}
-) {
-  const response =
-    await client
-      .responses
-      .create({
-        model:
-          MODEL,
-
-        reasoning: {
-          effort:
-            "low"
-        },
-
-        instructions:
-          OPENING_INSTRUCTIONS,
-
-        input:
-          `LOCAL_CONTEXT:\n${JSON.stringify(
-            clientContext,
-            null,
-            2
-          )}`
-      });
-
-  return response
-    .output_text
-    .trim();
-}
-
 
 async function planConversation({
   messages,
   session,
-  clientContext
+  clientContext,
 }) {
   const latest =
-    messages
-      .at(-1)
-      ?.content ||
+    messages.at(-1)?.content ||
     "";
 
-  /*
-   * Voice için latency önceliği:
-   * low reasoning.
-   *
-   * Chat'te medium.
-   */
-  const voice =
-    clientContext
-      ?.channel ===
-    "voice";
-
   const response =
-    await client
-      .responses
-      .create({
-        model:
-          MODEL,
+    await client.responses.create({
+      model: MODEL,
 
-        reasoning: {
-          effort:
-            voice
-              ? "low"
-              : "medium"
-        },
+      service_tier:
+        SERVICE_TIER,
 
-        instructions:
-          PLANNER_INSTRUCTIONS,
+      reasoning: {
+        effort: "none",
+      },
 
-        input:
-          `LOCAL_CONTEXT:\n${JSON.stringify(
-            clientContext || {},
-            null,
-            2
-          )}
+      max_output_tokens: 650,
+
+      instructions:
+        PLANNER_INSTRUCTIONS,
+
+      input: `
+LOCAL_CONTEXT:
+${JSON.stringify(
+  clientContext || {}
+)}
 
 CURRENT_SESSION:
 ${JSON.stringify(
-  session || {},
-  null,
-  2
+  session || {}
 )}
 
 CONVERSATION:
-${historyText(
-  messages
-)}`
-      });
+${historyText(messages)}
+`.trim(),
+    });
 
   const parsed =
     safeJson(
       response.output_text
     ) ||
-    fallbackPlan(
-      latest
-    );
-
+    fallbackPlan(latest);
 
   parsed.task =
     validateTask(
-      parsed.task ||
-      {}
+      parsed.task || {}
     );
-
 
   parsed.intents =
     Array.isArray(
@@ -302,196 +249,164 @@ ${historyText(
       ? parsed.intents
       : ["general"];
 
-
   parsed.provided =
-    parsed.provided ||
-    {};
-
+    parsed.provided || {};
 
   parsed.providedCandidates =
-    parsed
-      .providedCandidates ||
+    parsed.providedCandidates ||
     {};
 
-
   parsed.correction =
-    parsed.correction ||
-    {
+    parsed.correction || {
       field: null,
       newValue: null,
-      newValues: []
+      newValues: [],
     };
-
 
   parsed.unavailableFields =
     Array.isArray(
-      parsed
-        .unavailableFields
+      parsed.unavailableFields
     )
-      ? parsed
-          .unavailableFields
+      ? parsed.unavailableFields
       : [];
 
-
   parsed.claimReference =
-    parsed
-      .claimReference ||
+    parsed.claimReference ||
     {};
 
+  return {
+    plan: parsed,
 
-  return parsed;
+    serviceTier:
+      response.service_tier ||
+      SERVICE_TIER,
+  };
 }
-
 
 async function generateResponse({
   messages,
   plan,
   engine,
-  clientContext
+  clientContext,
 }) {
   const voice =
-    clientContext
-      ?.channel ===
+    clientContext?.channel ===
     "voice";
 
-
   const response =
-    await client
-      .responses
-      .create({
-        model:
-          MODEL,
+    await client.responses.create({
+      model: MODEL,
 
-        reasoning: {
-          effort:
-            voice
-              ? "low"
-              : "medium"
-        },
+      service_tier:
+        SERVICE_TIER,
 
-        instructions:
-          RESPONSE_INSTRUCTIONS,
+      reasoning: {
+        effort: "none",
+      },
 
-        input:
-          `LOCAL_CONTEXT:
+      max_output_tokens:
+        voice ? 180 : 420,
+
+      instructions:
+        RESPONSE_INSTRUCTIONS,
+
+      input: `
+LOCAL_CONTEXT:
 ${JSON.stringify(
-  clientContext || {},
-  null,
-  2
+  clientContext || {}
 )}
 
 CONVERSATION:
-${historyText(
-  messages
-)}
+${historyText(messages)}
 
 PLAN:
-${JSON.stringify(
-  plan,
-  null,
-  2
-)}
+${JSON.stringify(plan)}
 
 SESSION:
 ${JSON.stringify(
-  engine.session,
-  null,
-  2
+  engine.session
 )}
 
 TOOL_CONTEXT:
 ${JSON.stringify(
-  engine.toolContext,
-  null,
-  2
+  engine.toolContext
 )}
 
 UI_CONTEXT:
 ${JSON.stringify(
-  engine.ui,
-  null,
-  2
+  engine.ui
 )}
 
-Yalnızca doğrulanmış tool sonuçları ve güvenlik çerçevesi içinde cevap üret.`
-      });
+Yalnızca doğrulanmış tool sonuçları ve güvenlik çerçevesi içinde cevap üret.
+`.trim(),
+    });
 
+  return {
+    text:
+      response.output_text.trim(),
 
-  return response
-    .output_text
-    .trim();
+    serviceTier:
+      response.service_tier ||
+      SERVICE_TIER,
+  };
 }
-
 
 export async function POST(
   request
 ) {
   try {
     if (
-      !process.env
-        .OPENAI_API_KEY
+      !process.env.OPENAI_API_KEY
     ) {
       return Response.json(
         {
           error:
-            "OPENAI_API_KEY tanımlı değil."
+            "OPENAI_API_KEY tanımlı değil.",
         },
         {
-          status: 500
+          status: 500,
         }
       );
     }
 
-
     const body =
       await request.json();
 
-
     const clientContext =
-      body.clientContext ||
-      {};
-
+      body.clientContext || {};
 
     /*
-     * İlk karşılama.
+     * İlk karşılama artık AI request yapmıyor.
+     * Anında oluşturuluyor.
      */
-    if (
-      body.bootstrap
-    ) {
-      const message =
-        await generateOpening(
-          clientContext
-        );
-
-
+    if (body.bootstrap) {
       return Response.json({
-        message,
+        message:
+          generateOpening(
+            clientContext
+          ),
 
         session:
           blankSession(),
 
-        quickActions:
-          [],
+        quickActions: [],
 
         ui: {
-          quickActions:
-            [],
-
-          claimCards:
-            [],
-
-          documentCards:
-            []
+          quickActions: [],
+          claimCards: [],
+          documentCards: [],
+          verification: null,
+          uploadedFiles: [],
         },
 
-        model:
-          MODEL,
+        model: MODEL,
 
-        bootstrap:
-          true
+        serviceTier:
+          SERVICE_TIER,
+
+        bootstrap: true,
       });
     }
-
 
     const messages =
       Array.isArray(
@@ -500,7 +415,6 @@ export async function POST(
         ? body.messages
         : [];
 
-
     const currentSession =
       body.session &&
       typeof body.session ===
@@ -508,45 +422,38 @@ export async function POST(
         ? body.session
         : blankSession();
 
-
-    if (
-      !messages.length
-    ) {
+    if (!messages.length) {
       return Response.json(
         {
           error:
-            "Mesaj bulunamadı."
+            "Mesaj bulunamadı.",
         },
         {
-          status: 400
+          status: 400,
         }
       );
     }
 
-
     const latestUserText =
-      messages
-        .at(-1)
-        ?.content ||
-      "";
-
+      messages.at(-1)
+        ?.content || "";
 
     /*
-     * AI dialogue understanding.
+     * AI dialogue understanding
      */
-    const plan =
+    const planner =
       await planConversation({
         messages,
-
         session:
           currentSession,
-
-        clientContext
+        clientContext,
       });
 
+    const plan =
+      planner.plan;
 
     /*
-     * Deterministic truth layer.
+     * Deterministic HDI truth layer
      */
     const engine =
       applyV6Turn({
@@ -558,40 +465,32 @@ export async function POST(
 
         uploadedFiles:
           Array.isArray(
-            body
-              .uploadedFiles
+            body.uploadedFiles
           )
-            ? body
-                .uploadedFiles
-            : []
+            ? body.uploadedFiles
+            : [],
       });
 
-
     /*
-     * AI natural response.
+     * Natural language answer
      */
-    const message =
+    const generated =
       await generateResponse({
         messages,
         plan,
         engine,
-        clientContext
+        clientContext,
       });
 
-
     return Response.json({
-      message,
+      message:
+        generated.text,
 
       quickActions:
         engine.ui
           ?.quickActions ||
         [],
 
-      /*
-       * V6 UI artık sadece
-       * quickActions değil,
-       * rich UI state alıyor.
-       */
       ui:
         engine.ui,
 
@@ -607,23 +506,25 @@ export async function POST(
         engine.toolTrace,
 
       model:
-        MODEL
-    });
+        MODEL,
 
-  } catch (
-    error
-  ) {
+      serviceTier:
+        generated.serviceTier ||
+        planner.serviceTier,
+    });
+  } catch (error) {
     console.error(
+      "AI agent:",
       error
     );
 
     return Response.json(
       {
         error:
-          "AI agent akışında beklenmeyen bir hata oluştu."
+          "AI agent akışında beklenmeyen bir hata oluştu.",
       },
       {
-        status: 500
+        status: 500,
       }
     );
   }
