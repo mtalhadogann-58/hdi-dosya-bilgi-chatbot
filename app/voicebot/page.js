@@ -274,7 +274,7 @@ export default function VoiceBotPage() {
       );
     } catch (error) {
       const greeting =
-        "Merhaba, ben HDI Sigorta Dijital Asistanı TalhaGPT. Nasıl yardımcı olabilirim?";
+        "Merhaba, ben TEST TEST TEST Sigorta Dijital Asistanı TalhaGPT. Nasıl yardımcı olabilirim? MOCK DATA İLE ÇALIŞAN DEMO SÜRÜMÜNÜN BETASIYIM :) ";
 
       greetingRef.current =
         greeting;
