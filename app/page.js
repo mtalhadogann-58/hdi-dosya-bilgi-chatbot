@@ -10,6 +10,109 @@ const EMPTY_UI = {
   uploadedFiles: [],
 };
 
+const FIELD_LABELS = {
+  dosyaNo: "Dosya No",
+  policeNo: "Poliçe No",
+  plaka: "Plaka",
+  tckn: "TCKN",
+  vkn: "VKN",
+  telefon: "Telefon",
+  dogumTarihi: "Doğum Tarihi",
+  partajNo: "Partaj Kodu",
+  servisKodu: "Servis Anlaşma Kodu",
+  eksperKodu: "Eksper Anlaşma Kodu",
+};
+
+const ROLE_LABELS = {
+  sigortali: "Sigortalı",
+  magdur: "Mağdur",
+  acente: "Acente",
+  servis: "Servis",
+  eksper: "Eksper",
+  avukat: "Avukat",
+  firma_yetkilisi: "Firma Yetkilisi",
+};
+
+const VERIFICATION_GUIDES = {
+  sigortali: {
+    priority: null,
+    fields: [
+      "Dosya No",
+      "Poliçe No",
+      "Plaka",
+      "TCKN",
+      "Doğum Tarihi",
+      "Telefon",
+    ],
+  },
+
+  magdur: {
+    priority: null,
+    fields: [
+      "Dosya No",
+      "Poliçe No",
+      "Plaka",
+      "TCKN",
+      "Doğum Tarihi",
+      "Telefon",
+    ],
+  },
+
+  acente: {
+    priority: "Partaj Kodu",
+    fields: [
+      "Partaj Kodu",
+      "Dosya No",
+      "Poliçe No",
+      "Plaka",
+      "TCKN / VKN",
+    ],
+  },
+
+  servis: {
+    priority: "Servis Anlaşma Kodu",
+    fields: [
+      "Servis Anlaşma Kodu",
+      "Dosya No",
+      "Poliçe No",
+      "Plaka",
+      "TCKN / VKN",
+    ],
+  },
+
+  eksper: {
+    priority: "Eksper Anlaşma Kodu",
+    fields: [
+      "Eksper Anlaşma Kodu",
+      "Dosya No",
+      "Poliçe No",
+      "Plaka",
+      "TCKN / VKN",
+    ],
+  },
+
+  avukat: {
+    priority: null,
+    fields: [
+      "Dosya No",
+      "Poliçe No",
+      "Plaka",
+      "TCKN / VKN",
+    ],
+  },
+
+  firma_yetkilisi: {
+    priority: "VKN",
+    fields: [
+      "VKN",
+      "Dosya No",
+      "Poliçe No",
+      "Plaka",
+      "Telefon",
+    ],
+  },
+};
+
 function uid(prefix = "item") {
   return `${prefix}-${Date.now()}-${Math.random()
     .toString(36)
@@ -22,7 +125,8 @@ function getClientContext(channel = "chat") {
   return {
     locale: navigator.language || "tr-TR",
     timeZone:
-      Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Istanbul",
+      Intl.DateTimeFormat().resolvedOptions().timeZone ||
+      "Europe/Istanbul",
     localIso: now.toISOString(),
     localHour: now.getHours(),
     localDay: now.toLocaleDateString("tr-TR", {
@@ -51,14 +155,14 @@ function waitForDataChannel(dc) {
   }
 
   return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => {
+    const timer = setTimeout(() => {
       reject(new Error("Ses bağlantısı zaman aşımına uğradı."));
     }, 12000);
 
     dc.addEventListener(
       "open",
       () => {
-        clearTimeout(timeout);
+        clearTimeout(timer);
         resolve();
       },
       { once: true }
@@ -67,34 +171,57 @@ function waitForDataChannel(dc) {
     dc.addEventListener(
       "error",
       () => {
-        clearTimeout(timeout);
-        reject(new Error("Ses bağlantısı kurulamadı."));
+        clearTimeout(timer);
+        reject(new Error("Ses bağlantısı açılamadı."));
       },
       { once: true }
     );
   });
 }
 
+function isRealtimeSmallTalk(value = "") {
+  const text = String(value)
+    .toLocaleLowerCase("tr-TR")
+    .replace(/[?.!,;:]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const businessWords =
+    /(dosya|hasar|poliçe|police|plaka|tckn|vkn|partaj|servis kod|eksper kod|ödeme|odeme|evrak|belge|kasko|trafik)/;
+
+  if (businessWords.test(text)) {
+    return false;
+  }
+
+  if (text.length > 100) {
+    return false;
+  }
+
+  return /(selam|merhaba|naber|ne haber|nasılsın|ne yapıyorsun|orada mısın|duyuyor musun|duyabiliyor musun|sesim geliyor mu|ses geliyor mu|konuşuyor musun|neden konuşmuyorsun|niye konuşmuyorsun)/.test(
+    text
+  );
+}
+
 function Waveform({
-  values = [],
-  label,
-  sublabel,
+  values,
+  title,
+  subtitle,
   active,
-  variant = "customer",
+  type,
 }) {
   return (
-    <div className={`waveCard ${variant} ${active ? "active" : ""}`}>
-      <div className="waveIdentity">
-        <span className="waveLabel">{label}</span>
-        <span className="waveSub">{sublabel}</span>
+    <div className={`waveBox ${active ? "active" : ""} ${type}`}>
+      <div className="waveTitle">
+        <b>{title}</b>
+        <span>{subtitle}</span>
       </div>
 
       <div className="waveBars">
         {values.map((value, index) => (
-          <span
+          <i
             key={index}
             style={{
-              height: `${Math.max(4, value)}%`,
+              height: `${Math.max(7, value)}%`,
             }}
           />
         ))}
@@ -103,85 +230,37 @@ function Waveform({
   );
 }
 
-function StatusPill({ status }) {
-  const map = {
-    VERIFIED: {
-      label: "Doğrulandı",
-      className: "verified",
-    },
-    IN_PROGRESS: {
-      label: "Doğrulama sürüyor",
-      className: "progress",
-    },
-    UNVERIFIED: {
-      label: "Doğrulanmadı",
-      className: "muted",
-    },
-  };
-
-  const item = map[status] || map.UNVERIFIED;
-
+function PanelButton({
+  active,
+  onClick,
+  icon,
+  label,
+  badge,
+}) {
   return (
-    <span className={`statePill ${item.className}`}>
-      {item.label}
-    </span>
+    <button
+      className={`panelButton ${active ? "active" : ""}`}
+      onClick={onClick}
+      type="button"
+    >
+      <span className="panelIcon">{icon}</span>
+      <span>{label}</span>
+
+      {badge !== undefined && badge !== null && badge !== "" && (
+        <b className="panelBadge">{badge}</b>
+      )}
+
+      <span className="panelChevron">
+        {active ? "⌃" : "⌄"}
+      </span>
+    </button>
   );
-}
-
-const FIELD_LABELS = {
-  dosyaNo: "Dosya",
-  policeNo: "Poliçe",
-  plaka: "Plaka",
-  tckn: "TCKN",
-  vkn: "VKN",
-  telefon: "Telefon",
-  dogumTarihi: "Doğum Tarihi",
-  partajNo: "Partaj",
-  servisKodu: "Servis Kodu",
-  eksperKodu: "Eksper Kodu",
-};
-
-/*
- * Tool gerektirmeyen basit sesli konuşmalar.
- *
- * Bunlar /api/chat üzerinden iki ayrı AI çağrısını beklemez.
- * Realtime model doğrudan cevap verir.
- */
-function isRealtimeSmallTalk(value = "") {
-  const text = String(value)
-    .toLocaleLowerCase("tr-TR")
-    .replace(/[?.!,;:]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  const patterns = [
-    /^selam$/,
-    /^merhaba$/,
-    /^günaydın$/,
-    /^iyi akşamlar$/,
-    /^iyi günler$/,
-    /^nasılsın$/,
-    /^naber$/,
-    /^ne haber$/,
-    /^ne yapıyorsun$/,
-    /^orada mısın$/,
-    /^beni duyuyor musun$/,
-    /^sesim geliyor mu$/,
-    /^sesimi duyuyor musun$/,
-    /^konuşuyor musun$/,
-    /^neden konuşmuyorsun$/,
-    /^niye konuşmuyorsun$/,
-    /^ses geliyor mu$/,
-    /^ses geliyor mu bana$/,
-    /^beni duyabiliyor musun$/,
-  ];
-
-  return patterns.some((pattern) => pattern.test(text));
 }
 
 export default function Home() {
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
+
   const [session, setSession] = useState({});
   const [ui, setUi] = useState(EMPTY_UI);
   const [meta, setMeta] = useState(null);
@@ -193,70 +272,50 @@ export default function Home() {
   const [voiceStatus, setVoiceStatus] = useState("Kapalı");
   const [voiceError, setVoiceError] = useState("");
 
-  const [showOps, setShowOps] = useState(false);
+  const [activePanel, setActivePanel] = useState(null);
 
   const [uploading, setUploading] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState([]);
 
   const [customerWave, setCustomerWave] = useState(
-    Array(22).fill(5)
+    Array(18).fill(7)
   );
 
   const [talhaWave, setTalhaWave] = useState(
-    Array(22).fill(5)
+    Array(18).fill(7)
   );
 
-  /*
-   * CHAT / SESSION REFS
-   */
   const conversationRef = useRef([]);
   const sessionRef = useRef({});
   const uploadedFilesRef = useRef([]);
-  const greetingRef = useRef("");
 
   const fileInputRef = useRef(null);
   const bottomRef = useRef(null);
 
-  /*
-   * REALTIME REFS
-   */
   const pcRef = useRef(null);
   const dcRef = useRef(null);
-  const microphoneRef = useRef(null);
 
-  /*
-   * Bu artık gerçek DOM <audio> elementi.
-   */
+  const microphoneRef = useRef(null);
   const remoteAudioRef = useRef(null);
 
   const responseActiveRef = useRef(false);
-
-  /*
-   * React closure kaynaklı voiceConnected bug'ını engeller.
-   */
   const voiceConnectedRef = useRef(false);
-
-  /*
-   * Birden fazla backend request'in aynı anda açılmasını engeller.
-   */
   const busyRef = useRef(false);
 
-  /*
-   * Aynı transcript birkaç eventten gelirse tekrar işlenmez.
-   */
   const lastTurnRef = useRef({
     key: "",
     time: 0,
   });
 
-  const userItemMapRef = useRef(new Map());
   const processedItemsRef = useRef(new Set());
+  const userItemMapRef = useRef(new Map());
 
   const currentSpeechRef = useRef({
     messageId: null,
     target: "",
     transcript: "",
     mode: null,
+    saved: false,
   });
 
   const localMeterCleanupRef = useRef(null);
@@ -277,6 +336,12 @@ export default function Home() {
       ...EMPTY_UI,
       ...(next || {}),
     });
+  }
+
+  function togglePanel(name) {
+    setActivePanel((current) =>
+      current === name ? null : name
+    );
   }
 
   function upsertMessage(
@@ -338,6 +403,14 @@ export default function Home() {
     );
   }
 
+  function setMicrophoneEnabled(enabled) {
+    if (!microphoneRef.current) return;
+
+    for (const track of microphoneRef.current.getAudioTracks()) {
+      track.enabled = enabled;
+    }
+  }
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({
       behavior: "smooth",
@@ -353,7 +426,6 @@ export default function Home() {
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
-
         headers: {
           "Content-Type": "application/json",
         },
@@ -368,16 +440,11 @@ export default function Home() {
 
       if (!response.ok) {
         throw new Error(
-          data.error ||
-            "Karşılama oluşturulamadı."
+          data.error || "Karşılama oluşturulamadı."
         );
       }
 
-      const greeting = String(
-        data.message || ""
-      ).trim();
-
-      greetingRef.current = greeting;
+      const greeting = String(data.message || "").trim();
 
       conversationRef.current = [
         {
@@ -387,8 +454,8 @@ export default function Home() {
       ];
 
       syncSession(data.session || {});
+      syncUi(data.ui || {});
       setMeta(data);
-      syncUi(data.ui);
 
       upsertMessage(
         "opening",
@@ -396,12 +463,10 @@ export default function Home() {
         greeting
       );
     } catch (error) {
-      console.error("Bootstrap:", error);
+      console.error(error);
 
       const greeting =
-        "İyi günler, TEST TEST TEST Sigorta'dan Talha ben. Nasıl yardımcı olabilirim? SADECE MOCK DATA İLE ÇALIŞAN DEMO BİR BOTUM :) ";
-
-      greetingRef.current = greeting;
+        "İyi günler, TEST TEST TEST Sigorta'dan Talha ben. Nasıl yardımcı olabilirim?";
 
       conversationRef.current = [
         {
@@ -427,38 +492,22 @@ export default function Home() {
   }, []);
 
   function chooseActivity(value) {
-    const lower = String(value).toLocaleLowerCase(
-      "tr-TR"
-    );
-
-    if (
-      /dosya|hasar|plaka|poliçe|police/.test(
-        lower
-      )
-    ) {
-      return "Dosya bilgileri kontrol ediliyor";
-    }
-
-    if (
-      /evrak|belge|doküman|dokuman/.test(
-        lower
-      )
-    ) {
-      return "Belge bilgileri kontrol ediliyor";
-    }
+    const lower = String(value).toLocaleLowerCase("tr-TR");
 
     if (/ödeme|odeme/.test(lower)) {
-      return "Ödeme bilgileri kontrol ediliyor";
+      return "Ödeme bilgisi kontrol ediliyor";
+    }
+
+    if (/evrak|belge|doküman|dokuman/.test(lower)) {
+      return "Belge bilgisi kontrol ediliyor";
+    }
+
+    if (/dosya|hasar|plaka|poliçe|police/.test(lower)) {
+      return "Dosya bilgisi kontrol ediliyor";
     }
 
     return "Yanıt hazırlanıyor";
   }
-
-  /*
-   * ============================
-   * BUSINESS / CHAT TURN
-   * ============================
-   */
 
   async function submitTurn(
     content,
@@ -466,9 +515,7 @@ export default function Home() {
   ) {
     const value = String(content || "").trim();
 
-    if (!value) {
-      return;
-    }
+    if (!value) return;
 
     const {
       source = "chat",
@@ -476,10 +523,6 @@ export default function Home() {
       files = null,
     } = options;
 
-    /*
-     * Aynı cümle birkaç event tarafından
-     * milisaniyeler içinde gönderilmişse engelle.
-     */
     const normalized = value
       .toLocaleLowerCase("tr-TR")
       .replace(/\s+/g, " ")
@@ -491,11 +534,6 @@ export default function Home() {
       lastTurnRef.current.key === normalized &&
       now - lastTurnRef.current.time < 2200
     ) {
-      console.log(
-        "Duplicate turn ignored:",
-        value
-      );
-
       return;
     }
 
@@ -504,32 +542,19 @@ export default function Home() {
       time: now,
     };
 
-    /*
-     * Önceki business turn hâlâ çalışıyorsa
-     * aynı anda yeni backend turn açma.
-     */
     if (busyRef.current) {
-      console.log(
-        "Turn ignored because previous turn is busy:",
-        value
-      );
-
       return;
     }
 
     busyRef.current = true;
     setBusy(true);
 
-    const userMessageId = uid("user");
-
     if (displayUser) {
       upsertMessage(
-        userMessageId,
+        uid("user"),
         "user",
         value,
-        {
-          files,
-        }
+        { files }
       );
     }
 
@@ -543,10 +568,6 @@ export default function Home() {
 
     setText("");
 
-    /*
-     * Önceki turn'ün contextual butonlarını
-     * yeni cevap gelene kadar gizle.
-     */
     setUi((current) => ({
       ...current,
       quickActions: [],
@@ -555,73 +576,50 @@ export default function Home() {
     }));
 
     const activityTimer = setTimeout(() => {
-      setActivity(
-        chooseActivity(value)
-      );
-    }, 400);
+      setActivity(chooseActivity(value));
+    }, 350);
 
     try {
-      /*
-       * KRİTİK:
-       * voiceConnected React state'i değil,
-       * güncel REF okunuyor.
-       */
       const voiceActive =
-        voiceConnectedRef.current;
+        voiceConnectedRef.current ||
+        source === "voice";
 
-      const response = await fetch(
-        "/api/chat",
-        {
-          method: "POST",
+      const response = await fetch("/api/chat", {
+        method: "POST",
 
-          headers: {
-            "Content-Type": "application/json",
-          },
+        headers: {
+          "Content-Type": "application/json",
+        },
 
-          body: JSON.stringify({
-            messages:
-              conversationRef.current,
+        body: JSON.stringify({
+          messages: conversationRef.current,
+          session: sessionRef.current,
+          uploadedFiles: uploadedFilesRef.current,
 
-            session:
-              sessionRef.current,
-
-            uploadedFiles:
-              uploadedFilesRef.current,
-
-            clientContext:
-              getClientContext(
-                voiceActive ||
-                  source === "voice"
-                  ? "voice"
-                  : "chat"
-              ),
-          }),
-        }
-      );
+          clientContext: getClientContext(
+            voiceActive ? "voice" : "chat"
+          ),
+        }),
+      });
 
       const data = await response.json();
 
       if (!response.ok) {
         throw new Error(
-          data.error ||
-            "Yanıt alınamadı."
+          data.error || "Yanıt alınamadı."
         );
       }
 
       syncSession(data.session || {});
-
       syncUi(
         data.ui || {
-          quickActions:
-            data.quickActions || [],
+          quickActions: data.quickActions || [],
         }
       );
 
       setMeta(data);
 
-      const answer = String(
-        data.message || ""
-      ).trim();
+      const answer = String(data.message || "").trim();
 
       conversationRef.current = [
         ...conversationRef.current,
@@ -631,16 +629,7 @@ export default function Home() {
         },
       ];
 
-      /*
-       * Voice açıksa text cevabı ayrıca
-       * normal bubble olarak basmıyoruz.
-       *
-       * Realtime output transcript,
-       * Talha konuşurken bubble'ı oluşturacak.
-       */
-      if (
-        voiceConnectedRef.current
-      ) {
+      if (voiceConnectedRef.current) {
         speakRealtime(answer);
       } else {
         upsertMessage(
@@ -650,7 +639,7 @@ export default function Home() {
         );
       }
     } catch (error) {
-      console.error("submitTurn:", error);
+      console.error(error);
 
       upsertMessage(
         uid("assistant"),
@@ -667,12 +656,6 @@ export default function Home() {
     }
   }
 
-  /*
-   * =========================
-   * FILE UPLOAD
-   * =========================
-   */
-
   async function handleFiles(event) {
     const files = Array.from(
       event.target.files || []
@@ -680,9 +663,7 @@ export default function Home() {
 
     event.target.value = "";
 
-    if (!files.length) {
-      return;
-    }
+    if (!files.length) return;
 
     setUploading(true);
 
@@ -691,37 +672,24 @@ export default function Home() {
     try {
       for (const file of files) {
         const form = new FormData();
+        form.append("file", file);
 
-        form.append(
-          "file",
-          file
-        );
-
-        const response = await fetch(
-          "/api/uploads",
-          {
-            method: "POST",
-            body: form,
-          }
-        );
+        const response = await fetch("/api/uploads", {
+          method: "POST",
+          body: form,
+        });
 
         const data = await response.json();
 
         if (!response.ok) {
           throw new Error(
-            data.error ||
-              `${file.name} yüklenemedi.`
+            data.error || `${file.name} yüklenemedi.`
           );
         }
 
         received.push({
           ...data.file,
-
-          /*
-           * Demo için browser preview.
-           */
-          localUrl:
-            URL.createObjectURL(file),
+          localUrl: URL.createObjectURL(file),
         });
       }
 
@@ -730,9 +698,7 @@ export default function Home() {
         ...received,
       ];
 
-      uploadedFilesRef.current =
-        nextFiles;
-
+      uploadedFilesRef.current = nextFiles;
       setUploadedFiles(nextFiles);
 
       const names = received
@@ -745,7 +711,7 @@ export default function Home() {
           : `${names} dosyalarını yükledim.`;
 
       upsertMessage(
-        uid("user-file"),
+        uid("file"),
         "user",
         message,
         {
@@ -758,31 +724,17 @@ export default function Home() {
         files: received,
       });
     } catch (error) {
-      console.error(
-        "File upload:",
-        error
-      );
-
       upsertMessage(
-        uid("system"),
+        uid("error"),
         "assistant",
-        `Dosya yükleme sırasında hata oluştu: ${error.message}`
+        `Dosya yüklenemedi: ${error.message}`
       );
     } finally {
       setUploading(false);
     }
   }
 
-  /*
-   * =========================
-   * AUDIO LEVEL METERS
-   * =========================
-   */
-
-  function attachMeter(
-    stream,
-    setter
-  ) {
+  function attachMeter(stream, setter) {
     const AudioContext =
       window.AudioContext ||
       window.webkitAudioContext;
@@ -791,53 +743,41 @@ export default function Home() {
       return () => {};
     }
 
-    const context =
-      new AudioContext();
+    const context = new AudioContext();
 
     const source =
-      context.createMediaStreamSource(
-        stream
-      );
+      context.createMediaStreamSource(stream);
 
     const analyser =
       context.createAnalyser();
 
     analyser.fftSize = 128;
-
-    analyser.smoothingTimeConstant =
-      0.72;
+    analyser.smoothingTimeConstant = 0.7;
 
     source.connect(analyser);
 
     const data =
-      new Uint8Array(
-        analyser.frequencyBinCount
-      );
+      new Uint8Array(analyser.frequencyBinCount);
 
     const interval = setInterval(() => {
       analyser.getByteFrequencyData(data);
 
       const bars = Array.from({
-        length: 22,
+        length: 18,
       }).map((_, index) => {
         const position = Math.min(
           data.length - 1,
           Math.floor(
-            (index / 22) *
-              data.length
+            (index / 18) * data.length
           )
         );
-
-        const value =
-          data[position] || 0;
 
         return Math.min(
           100,
           Math.max(
-            5,
+            7,
             Math.round(
-              (value / 255) *
-                100
+              ((data[position] || 0) / 255) * 100
             )
           )
         );
@@ -857,40 +797,20 @@ export default function Home() {
         analyser.disconnect();
       } catch {}
 
-      context
-        .close()
-        .catch(() => {});
+      context.close().catch(() => {});
 
-      setter(
-        Array(22).fill(5)
-      );
+      setter(Array(18).fill(7));
     };
   }
 
-  /*
-   * =========================
-   * REALTIME VOICE
-   * =========================
-   */
-
   function cancelRealtimeResponse() {
-    /*
-     * Önceki "Cancellation failed:
-     * no active response found"
-     * hatasını bu kontrol engelliyor.
-     */
-    if (
-      !responseActiveRef.current
-    ) {
+    if (!responseActiveRef.current) {
       return;
     }
 
     const dc = dcRef.current;
 
-    if (
-      !dc ||
-      dc.readyState !== "open"
-    ) {
+    if (!dc || dc.readyState !== "open") {
       return;
     }
 
@@ -900,25 +820,39 @@ export default function Home() {
           type: "response.cancel",
         })
       );
-    } catch (error) {
-      console.error(
-        "response.cancel:",
-        error
-      );
-    }
+    } catch {}
 
-    responseActiveRef.current =
-      false;
+    responseActiveRef.current = false;
   }
 
-  /*
-   * Backend V6 cevabını yalnızca
-   * seslendiren Realtime turn.
-   */
+  function prepareAssistantAudio() {
+    /*
+     * Talha konuşurken mikrofonu geçici kapatıyoruz.
+     *
+     * Böylece hoparlörden çıkan Talha sesi tekrar
+     * mikrofon tarafından kullanıcı konuşması gibi
+     * algılanıp kendi yanıtını kesmiyor.
+     */
+    setMicrophoneEnabled(false);
+
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current
+        .play()
+        .catch(() => {});
+    }
+  }
+
+  function finishAssistantAudio() {
+    setTimeout(() => {
+      if (voiceConnectedRef.current) {
+        setMicrophoneEnabled(true);
+        setVoiceStatus("Dinliyorum");
+      }
+    }, 120);
+  }
+
   function speakRealtime(content) {
-    const clean = String(
-      content || ""
-    ).trim();
+    const clean = String(content || "").trim();
 
     const dc = dcRef.current;
 
@@ -936,21 +870,21 @@ export default function Home() {
       return;
     }
 
-    if (
-      responseActiveRef.current
-    ) {
+    if (responseActiveRef.current) {
       cancelRealtimeResponse();
     }
 
-    const messageId = uid(
-      "assistant-live"
-    );
+    prepareAssistantAudio();
+
+    const messageId =
+      uid("assistant-live");
 
     currentSpeechRef.current = {
       messageId,
       target: clean,
       transcript: "",
       mode: "backend",
+      saved: true,
     };
 
     upsertMessage(
@@ -962,63 +896,47 @@ export default function Home() {
       }
     );
 
-    setVoiceStatus(
-      "Talha konuşuyor"
-    );
+    setVoiceStatus("Talha konuşuyor");
 
     dc.send(
       JSON.stringify({
         type: "response.create",
 
         response: {
-          output_modalities: [
-            "audio",
-          ],
+          output_modalities: ["audio"],
 
           instructions: `
-Aşağıdaki HDI Talha cevabını Türkçe seslendir.
+Aşağıdaki cevabı Türkçe seslendir.
 
 Sen Talha'sın.
 
-Genç yetişkin ERKEK bir dijital asistansın.
+Genç yetişkin erkek bir HDI Sigorta dijital asistanısın.
 
-Kasko ve trafik poliçesi üretim ağırlığı olan ama konut ve yangın ve diğer branşlardan da poliçe üreten kurumsal bir şirkette 15 yıldır müşteri temsilcisisin. 
+Bir müşteri temsilcisi gibi doğal, rahat, net ve profesyonel konuş.
 
-Çok iyi sigortacılık biliyorsun. 
+Normal konuşma temposundan biraz hızlı konuş.
 
-Aslen sivaslısın. 2-3 dakika boyunca ısrar edilmedikçe sivaslı olduğunu kimse ile paylaşma. 5-6 kereden fazla nerelisin diye soran olursa seni tasarlayan mühendisin aslen sivaslı olduğu bilgisini paylaşabilirsin. 
+IVR veya anons gibi okuma.
 
-Profesyonel ama doğal bir müşteri temsilcisi gibi konuş.
-
-Kullanıcının jargonunu TAKLİT ETME.
-
-ASLA şu hitapları kullanma:
-- abi
-- kanka
-- bro
-- reis
-- dostum
-- kardeşim
-
-IVR veya kurumsal anons gibi konuşma.
-
-Rahat, net, sıcak ve kendinden emin ol.
-
-Normal konuşma hızından hafif hızlı konuş.
+Kelime kelime vurgu yapma.
 
 Gereksiz duraklama yapma.
 
-Her kelimeyi ayrı vurgulama.
+Kullanıcının jargonunu taklit etme.
 
-Cümle sonlarını uzatma.
+ASLA şu hitapları kullanma:
+abi
+kanka
+bro
+reis
+dostum
+kardeşim
 
 Metindeki bilgiyi değiştirme.
-
 Yeni bilgi ekleme.
-
 Bilgi çıkarma.
 
-SESLENDİRİLECEK METİN:
+CEVAP:
 
 ${clean}
 `.trim(),
@@ -1027,42 +945,28 @@ ${clean}
     );
   }
 
-  /*
-   * Selam / nasılsın / ses geliyor mu
-   * gibi business tool gerektirmeyen
-   * basit konuşmalara doğrudan
-   * Realtime cevap verir.
-   *
-   * Böylece Sol planner + composer
-   * zinciri beklenmez.
-   */
-  function realtimeSmallTalk(
-    userText
-  ) {
+  function realtimeSmallTalk(userText) {
     const dc = dcRef.current;
 
-    if (
-      !dc ||
-      dc.readyState !== "open"
-    ) {
+    if (!dc || dc.readyState !== "open") {
       return false;
     }
 
-    if (
-      responseActiveRef.current
-    ) {
+    if (responseActiveRef.current) {
       cancelRealtimeResponse();
     }
 
-    const messageId = uid(
-      "assistant-live"
-    );
+    prepareAssistantAudio();
+
+    const messageId =
+      uid("assistant-live");
 
     currentSpeechRef.current = {
       messageId,
       target: "",
       transcript: "",
       mode: "smalltalk",
+      saved: false,
     };
 
     upsertMessage(
@@ -1074,55 +978,48 @@ ${clean}
       }
     );
 
-    setVoiceStatus(
-      "Talha konuşuyor"
-    );
+    setVoiceStatus("Talha konuşuyor");
 
     dc.send(
       JSON.stringify({
         type: "response.create",
 
         response: {
-          output_modalities: [
-            "audio",
-          ],
+          output_modalities: ["audio"],
 
           instructions: `
-Kullanıcının son söylediği şey:
+Kullanıcı şunu söyledi:
 
 "${userText}"
 
-Bu yalnızca gündelik ve güvenli bir konuşma turudur.
-
-HDI müşteri verisi veya iş kuralı gerektirmiyor.
+Bu yalnızca gündelik bir konuşma turudur.
 
 Türkçe cevap ver.
 
-EN FAZLA 1 kısa cümle kullan.
+En fazla 1 kısa cümle söyle.
 
 Sen Talha'sın.
-
-Genç yetişkin ERKEK bir dijital asistansın.
+Genç yetişkin erkek bir dijital asistansın.
 
 Sıcak ama profesyonel ol.
 
-Kullanıcının konuşma tarzını veya jargonunu taklit etme.
+Kullanıcının jargonunu taklit etme.
 
-ASLA şu hitapları kullanma:
-- abi
-- kanka
-- bro
-- reis
-- dostum
-- kardeşim
+ASLA:
+abi
+kanka
+bro
+reis
+dostum
+kardeşim
 
-"Sesim geliyor mu?" veya benzeri bir soruysa sadece duyduğunu kısa ve doğal biçimde söyle.
+gibi hitaplar kullanma.
 
-Teknik sebep uydurma.
+"Sesim geliyor mu?" deniyorsa kısa biçimde duyduğunu söyle.
 
-Cihaz veya uygulama ayarları hakkında kanıtsız teşhis yapma.
+Teknik problem veya cihaz ayarı uydurma.
 
-"Nasılsın?" denirse doğal ve kısa karşılık ver.
+"Nasılsın?" deniyorsa kısa ve doğal karşılık ver.
 
 Hemen cevap ver.
 `.trim(),
@@ -1135,39 +1032,21 @@ Hemen cevap ver.
 
   function handleRealtimeEvent(event) {
     switch (event.type) {
-      /*
-       * Kullanıcı konuşmaya başladı.
-       */
       case "input_audio_buffer.speech_started": {
-        setVoiceStatus(
-          "Dinliyorum"
-        );
-
+        setVoiceStatus("Dinliyorum");
         break;
       }
 
-      /*
-       * Kullanıcı sustu / VAD turn kapattı.
-       */
       case "input_audio_buffer.speech_stopped": {
-        setVoiceStatus(
-          "Anlıyorum"
-        );
-
+        setVoiceStatus("Anlıyorum");
         break;
       }
 
-      /*
-       * KULLANICI PARTIAL TRANSCRIPT
-       */
       case "conversation.item.input_audio_transcription.delta": {
-        const itemId =
-          event.item_id;
+        const itemId = event.item_id;
 
         let messageId =
-          userItemMapRef.current.get(
-            itemId
-          );
+          userItemMapRef.current.get(itemId);
 
         if (!messageId) {
           messageId =
@@ -1203,15 +1082,8 @@ Hemen cevap ver.
         break;
       }
 
-      /*
-       * KULLANICI FINAL TRANSCRIPT
-       *
-       * Partial text final transcript ile
-       * tamamen replace edilir.
-       */
       case "conversation.item.input_audio_transcription.completed": {
-        const itemId =
-          event.item_id;
+        const itemId = event.item_id;
 
         const finalText = String(
           event.transcript || ""
@@ -1222,9 +1094,7 @@ Hemen cevap ver.
         }
 
         const messageId =
-          userItemMapRef.current.get(
-            itemId
-          ) ||
+          userItemMapRef.current.get(itemId) ||
           `user-live-${itemId}`;
 
         upsertMessage(
@@ -1236,43 +1106,27 @@ Hemen cevap ver.
           }
         );
 
-        removeLiveFlag(
-          messageId
-        );
+        removeLiveFlag(messageId);
 
-        /*
-         * Aynı Realtime item iki kere
-         * completed event üretirse
-         * ikinciyi tamamen yok say.
-         */
         if (
-          processedItemsRef.current.has(
-            itemId
-          )
+          processedItemsRef.current.has(itemId)
         ) {
           break;
         }
 
-        processedItemsRef.current.add(
-          itemId
-        );
+        processedItemsRef.current.add(itemId);
 
-        /*
-         * Small talk ise direkt Realtime.
-         */
-        if (
-          isRealtimeSmallTalk(
-            finalText
-          )
-        ) {
-          realtimeSmallTalk(
-            finalText
-          );
+        if (isRealtimeSmallTalk(finalText)) {
+          conversationRef.current = [
+            ...conversationRef.current,
+            {
+              role: "user",
+              content: finalText,
+            },
+          ];
+
+          realtimeSmallTalk(finalText);
         } else {
-          /*
-           * Business / HDI turn ise
-           * V6 backend'e gider.
-           */
           submitTurn(
             finalText,
             {
@@ -1285,23 +1139,18 @@ Hemen cevap ver.
         break;
       }
 
-      /*
-       * Talha'nın ses cevabı oluşturuldu.
-       */
       case "response.created": {
-        responseActiveRef.current =
-          true;
+        responseActiveRef.current = true;
 
-        setVoiceStatus(
-          "Talha konuşuyor"
-        );
+        setVoiceStatus("Talha konuşuyor");
+
+        remoteAudioRef.current
+          ?.play()
+          .catch(() => {});
 
         break;
       }
 
-      /*
-       * TALHA CANLI OUTPUT TRANSCRIPT
-       */
       case "response.output_audio_transcript.delta": {
         const current =
           currentSpeechRef.current;
@@ -1313,8 +1162,7 @@ Hemen cevap ver.
           break;
         }
 
-        current.transcript +=
-          event.delta;
+        current.transcript += event.delta;
 
         upsertMessage(
           current.messageId,
@@ -1329,9 +1177,6 @@ Hemen cevap ver.
         break;
       }
 
-      /*
-       * TALHA FINAL OUTPUT TRANSCRIPT
-       */
       case "response.output_audio_transcript.done": {
         const current =
           currentSpeechRef.current;
@@ -1357,32 +1202,31 @@ Hemen cevap ver.
             }
           );
 
-          /*
-           * Realtime small talk backend
-           * history'sine girmemişti.
-           *
-           * İstersek burada sadece
-           * assistant cevabını eklemiyoruz;
-           * Realtime kendi conversation
-           * state'ini zaten tutuyor.
-           */
+          if (
+            current.mode === "smalltalk" &&
+            !current.saved
+          ) {
+            conversationRef.current = [
+              ...conversationRef.current,
+              {
+                role: "assistant",
+                content: finalText,
+              },
+            ];
+
+            current.saved = true;
+          }
         }
 
         break;
       }
 
       case "response.done": {
-        responseActiveRef.current =
-          false;
+        responseActiveRef.current = false;
 
         const current =
           currentSpeechRef.current;
 
-        /*
-         * Transcript event hiç gelmezse
-         * backend cevabını fallback olarak
-         * göster.
-         */
         if (
           current.messageId &&
           !current.transcript &&
@@ -1391,16 +1235,11 @@ Hemen cevap ver.
           upsertMessage(
             current.messageId,
             "assistant",
-            current.target,
-            {
-              live: false,
-            }
+            current.target
           );
         }
 
-        if (
-          current.messageId
-        ) {
+        if (current.messageId) {
           removeLiveFlag(
             current.messageId
           );
@@ -1411,39 +1250,31 @@ Hemen cevap ver.
           target: "",
           transcript: "",
           mode: null,
+          saved: false,
         };
 
-        if (
-          voiceConnectedRef.current
-        ) {
-          setVoiceStatus(
-            "Dinliyorum"
-          );
-        }
+        finishAssistantAudio();
 
         break;
       }
 
       case "error": {
         console.error(
-          "Realtime event error:",
+          "Realtime error:",
           event
         );
 
-        responseActiveRef.current =
-          false;
+        responseActiveRef.current = false;
+
+        setMicrophoneEnabled(true);
 
         setVoiceError(
           event.error?.message ||
             "Ses bağlantısında hata oluştu."
         );
 
-        if (
-          voiceConnectedRef.current
-        ) {
-          setVoiceStatus(
-            "Dinliyorum"
-          );
+        if (voiceConnectedRef.current) {
+          setVoiceStatus("Dinliyorum");
         }
 
         break;
@@ -1455,21 +1286,13 @@ Hemen cevap ver.
   }
 
   async function startVoice() {
-    if (
-      voiceConnectedRef.current
-    ) {
+    if (voiceConnectedRef.current) {
       return;
     }
 
     setVoiceError("");
+    setVoiceStatus("Bağlanıyor");
 
-    setVoiceStatus(
-      "Bağlanıyor"
-    );
-
-    /*
-     * Yeni bağlantıda event cache'lerini temizle.
-     */
     processedItemsRef.current =
       new Set();
 
@@ -1479,24 +1302,13 @@ Hemen cevap ver.
     responseActiveRef.current =
       false;
 
-    currentSpeechRef.current = {
-      messageId: null,
-      target: "",
-      transcript: "",
-      mode: null,
-    };
-
     try {
-      /*
-       * 1 — Ephemeral Realtime token
-       */
-      const tokenResponse =
-        await fetch(
-          "/api/realtime/session",
-          {
-            method: "POST",
-          }
-        );
+      const tokenResponse = await fetch(
+        "/api/realtime/session",
+        {
+          method: "POST",
+        }
+      );
 
       const tokenData =
         await tokenResponse.json();
@@ -1513,26 +1325,20 @@ Hemen cevap ver.
 
       if (!secret) {
         throw new Error(
-          "Geçici Realtime anahtarı alınamadı."
+          "Realtime bağlantı anahtarı alınamadı."
         );
       }
 
-      /*
-       * 2 — Mikrofon
-       */
       const stream =
-        await navigator.mediaDevices.getUserMedia(
-          {
-            audio: {
-              echoCancellation: true,
-              noiseSuppression: true,
-              autoGainControl: true,
-            },
-          }
-        );
+        await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        });
 
-      microphoneRef.current =
-        stream;
+      microphoneRef.current = stream;
 
       localMeterCleanupRef.current =
         attachMeter(
@@ -1540,18 +1346,11 @@ Hemen cevap ver.
           setCustomerWave
         );
 
-      /*
-       * 3 — PeerConnection
-       */
       const pc =
         new RTCPeerConnection();
 
-      pcRef.current =
-        pc;
+      pcRef.current = pc;
 
-      /*
-       * JSX içindeki gerçek audio elementi.
-       */
       const audio =
         remoteAudioRef.current;
 
@@ -1566,42 +1365,35 @@ Hemen cevap ver.
       audio.muted = false;
       audio.volume = 1;
 
-      /*
-       * Realtime'ın remote audio track'i.
-       */
-      pc.ontrack =
-        async (trackEvent) => {
-          const remoteStream =
-            trackEvent.streams?.[0];
+      pc.ontrack = async (event) => {
+        const remoteStream =
+          event.streams?.[0];
 
-          if (!remoteStream) {
-            return;
-          }
+        if (!remoteStream) {
+          return;
+        }
 
-          audio.srcObject =
-            remoteStream;
+        audio.srcObject =
+          remoteStream;
 
-          remoteMeterCleanupRef.current?.();
+        remoteMeterCleanupRef.current?.();
 
-          remoteMeterCleanupRef.current =
-            attachMeter(
-              remoteStream,
-              setTalhaWave
-            );
+        remoteMeterCleanupRef.current =
+          attachMeter(
+            remoteStream,
+            setTalhaWave
+          );
 
-          try {
-            await audio.play();
-          } catch (error) {
-            console.error(
-              "Remote audio play:",
-              error
-            );
+        try {
+          await audio.play();
+        } catch (error) {
+          console.error(error);
 
-            setVoiceError(
-              "Talha'nın sesi tarayıcı tarafından oynatılamadı."
-            );
-          }
-        };
+          setVoiceError(
+            "Talha'nın sesi oynatılamadı."
+          );
+        }
+      };
 
       const micTrack =
         stream.getAudioTracks()[0];
@@ -1617,41 +1409,26 @@ Hemen cevap ver.
         stream
       );
 
-      /*
-       * 4 — Realtime JSON event channel
-       */
       const dc =
         pc.createDataChannel(
           "oai-events"
         );
 
-      dcRef.current =
-        dc;
+      dcRef.current = dc;
 
       dc.addEventListener(
         "message",
         (message) => {
           try {
-            const event =
-              JSON.parse(
-                message.data
-              );
-
             handleRealtimeEvent(
-              event
+              JSON.parse(message.data)
             );
           } catch (error) {
-            console.error(
-              "Realtime event parse:",
-              error
-            );
+            console.error(error);
           }
         }
       );
 
-      /*
-       * 5 — WebRTC SDP handshake
-       */
       const offer =
         await pc.createOffer();
 
@@ -1678,12 +1455,8 @@ Hemen cevap ver.
         );
 
       if (!sdpResponse.ok) {
-        const detail =
-          await sdpResponse.text();
-
         throw new Error(
-          detail ||
-            "Realtime bağlantısı kurulamadı."
+          await sdpResponse.text()
         );
       }
 
@@ -1695,39 +1468,21 @@ Hemen cevap ver.
         sdp: answer,
       });
 
-      await waitForDataChannel(
-        dc
-      );
+      await waitForDataChannel(dc);
 
-      /*
-       * REF state'ten ÖNCE set edilir.
-       *
-       * Böylece callback eski React
-       * render'ını tutsa bile ses cevabı
-       * kaybolmaz.
-       */
-      voiceConnectedRef.current =
-        true;
+      voiceConnectedRef.current = true;
 
       setVoiceConnected(true);
-
-      setVoiceStatus(
-        "Dinliyorum"
-      );
+      setVoiceStatus("Dinliyorum");
 
       /*
-       * Uzun IVR anonsu yok.
-       * Kullanıcı bağlantının hazır olduğunu
-       * kısa biçimde duyar.
+       * Çok kısa sesli başlangıç.
        */
       speakRealtime(
-        "Buradayım, sizi dinliyorum."
+        "Sizi dinliyorum."
       );
     } catch (error) {
-      console.error(
-        "startVoice:",
-        error
-      );
+      console.error(error);
 
       setVoiceError(
         error.message ||
@@ -1739,11 +1494,7 @@ Hemen cevap ver.
   }
 
   function closeVoice() {
-    /*
-     * Önce REF kapanır.
-     */
-    voiceConnectedRef.current =
-      false;
+    voiceConnectedRef.current = false;
 
     cancelRealtimeResponse();
 
@@ -1763,69 +1514,40 @@ Hemen cevap ver.
       pcRef.current = null;
     }
 
-    if (
-      microphoneRef.current
-    ) {
-      for (const track of
-        microphoneRef.current.getTracks()) {
+    if (microphoneRef.current) {
+      for (const track of microphoneRef.current.getTracks()) {
         track.stop();
       }
 
-      microphoneRef.current =
-        null;
+      microphoneRef.current = null;
     }
 
-    /*
-     * remoteAudioRef artık DOM ref.
-     * NULL YAPMIYORUZ.
-     */
-    if (
-      remoteAudioRef.current
-    ) {
+    if (remoteAudioRef.current) {
       try {
         remoteAudioRef.current.pause();
-
-        remoteAudioRef.current.srcObject =
-          null;
+        remoteAudioRef.current.srcObject = null;
       } catch {}
     }
 
     localMeterCleanupRef.current?.();
     remoteMeterCleanupRef.current?.();
 
-    localMeterCleanupRef.current =
-      null;
+    localMeterCleanupRef.current = null;
+    remoteMeterCleanupRef.current = null;
 
-    remoteMeterCleanupRef.current =
-      null;
-
-    responseActiveRef.current =
-      false;
-
-    currentSpeechRef.current = {
-      messageId: null,
-      target: "",
-      transcript: "",
-      mode: null,
-    };
+    responseActiveRef.current = false;
 
     setVoiceConnected(false);
     setVoiceStatus("Kapalı");
 
     setCustomerWave(
-      Array(22).fill(5)
+      Array(18).fill(7)
     );
 
     setTalhaWave(
-      Array(22).fill(5)
+      Array(18).fill(7)
     );
   }
-
-  /*
-   * =========================
-   * RESET
-   * =========================
-   */
 
   async function resetConversation() {
     closeVoice();
@@ -1850,63 +1572,71 @@ Hemen cevap ver.
     setMessages([]);
     setSession({});
     setUploadedFiles([]);
-
-    syncUi(
-      EMPTY_UI
-    );
-
     setMeta(null);
-
     setText("");
     setActivity("");
     setVoiceError("");
+    setActivePanel(null);
+
+    syncUi(EMPTY_UI);
 
     await bootstrap();
   }
-
-  /*
-   * =========================
-   * DERIVED UI STATE
-   * =========================
-   */
 
   const verification =
     session?.verification || {};
 
   const evidence =
-    verification?.evidenceCandidates ||
-    {};
+    verification.evidenceCandidates || {};
 
   const verificationStatus =
-    verification?.status ||
-    "UNVERIFIED";
+    verification.status || "UNVERIFIED";
 
   const matchedCount =
-    verification?.matchedCount || 0;
-
-  const activeClaim =
-    session?.activeClaimNo || null;
+    verification.matchedCount || 0;
 
   const activeRole =
     session?.role || null;
 
+  const activeClaim =
+    session?.activeClaimNo || null;
+
+  const candidateClaims =
+    session?.candidateClaims || [];
+
+  const task =
+    meta?.task ||
+    meta?.plan?.task ||
+    {};
+
   const intents =
     meta?.plan?.intents || [];
 
-  const voiceCustomerActive =
-    voiceConnected &&
-    voiceStatus === "Dinliyorum";
+  const toolTrace =
+    meta?.toolTrace || [];
 
-  const voiceTalhaActive =
-    voiceConnected &&
-    voiceStatus === "Talha konuşuyor";
+  const guide =
+    VERIFICATION_GUIDES[activeRole] || {
+      priority: null,
+
+      fields: [
+        "Dosya No",
+        "Poliçe No",
+        "Plaka",
+        "TCKN / VKN",
+        "Doğum Tarihi",
+        "Telefon",
+      ],
+    };
+
+  const matchedFields =
+    ui?.verification?.matchedFields || [];
+
+  const rejectedCandidates =
+    ui?.verification?.rejectedCandidates || [];
 
   return (
     <main className="workspace">
-      {/*
-       * GERÇEK WEBRTC AUDIO OUTPUT.
-       * CSS ile görünmez olacak.
-       */}
       <audio
         ref={remoteAudioRef}
         autoPlay
@@ -1914,343 +1644,702 @@ Hemen cevap ver.
         className="remoteAudio"
       />
 
-      {/* ================= LEFT RAIL ================= */}
+      <section className="appShell">
+        {/* TOPBAR */}
 
-      <aside className="rail">
-        <div className="railBrand">
-          <div className="hdiMark">
-            58
+        <header className="topbar">
+          <div className="brand">
+            <div className="hdiLogo">
+              58
+            </div>
+
+            <div>
+              <b>Talha AI</b>
+              <span>
+                TEST TEST TEST AI ASSISTANT
+              </span>
+            </div>
           </div>
 
-          <div>
-            <strong>
-              Talha AI
-            </strong>
+          <div className="topActions">
+            <div
+              className={`connectionStatus ${
+                voiceConnected ? "on" : ""
+              }`}
+            >
+              <i />
 
-            <span>
-              Customer Relations
-            </span>
-          </div>
-        </div>
-
-        <div className="railDivider" />
-
-        <button
-          className={`voiceMainButton ${
-            voiceConnected
-              ? "connected"
-              : ""
-          }`}
-          onClick={
-            voiceConnected
-              ? closeVoice
-              : startVoice
-          }
-        >
-          <span className="voiceMainIcon">
-            {voiceConnected
-              ? "■"
-              : "●"}
-          </span>
-
-          <span>
-            {voiceConnected
-              ? "Görüşmeyi Bitir"
-              : "Sesli Görüşme"}
-          </span>
-        </button>
-
-        <div className="railStatus">
-          <span
-            className={`statusDot ${
-              voiceConnected
-                ? "online"
-                : ""
-            }`}
-          />
-
-          <div>
-            <b>
               {voiceConnected
                 ? voiceStatus
-                : "Chat aktif"}
-            </b>
-
-            <small>
-              {voiceConnected
-                ? "Mikrofon açık"
-                : "Ses kapalı"}
-            </small>
-          </div>
-        </div>
-
-        <nav className="railNav">
-          <button className="active">
-            <span>✦</span>
-            Görüşme
-          </button>
-
-          <button
-            onClick={() =>
-              setShowOps(
-                (value) =>
-                  !value
-              )
-            }
-          >
-            <span>⌘</span>
-            Operasyon
-          </button>
-
-          <button
-            onClick={
-              resetConversation
-            }
-          >
-            <span>↻</span>
-            Yeni Oturum
-          </button>
-        </nav>
-
-        <div className="railBottom">
-          <span className="modelTag">
-            V6
-          </span>
-
-          <small>
-            GPT-5.6 Sol
-          </small>
-        </div>
-      </aside>
-
-      {/* ================= CENTER ================= */}
-
-      <section className="conversation">
-        <header className="conversationHeader">
-          <div>
-            <span className="eyebrow">
-              TEST TEST TEST SIGORTA · AI ASSISTANT
-            </span>
-
-            <h1>
-              Müşteri Görüşmesi
-            </h1>
-          </div>
-
-          <div className="headerActions">
-            <div className="secureState">
-              <span className="secureIcon">
-                ◈
-              </span>
-
-              <div>
-                <small>
-                  Güvenlik
-                </small>
-
-                <b>
-                  KVKK kontrollü
-                </b>
-              </div>
+                : "Chat"}
             </div>
+
+            <button
+              className={`voiceButton ${
+                voiceConnected ? "active" : ""
+              }`}
+              onClick={
+                voiceConnected
+                  ? closeVoice
+                  : startVoice
+              }
+            >
+              {voiceConnected
+                ? "■ Görüşmeyi Bitir"
+                : "◉ Sesli Görüşme"}
+            </button>
+
+            <button
+              className="iconButton"
+              onClick={
+                resetConversation
+              }
+              title="Yeni oturum"
+            >
+              ↻
+            </button>
           </div>
         </header>
 
-        {/* ================= AUDIO ================= */}
+        {/* VOICE STRIP */}
 
-        <div className="audioDeck">
+        <section className="voiceStrip">
           <Waveform
-            label="SİZ"
-            sublabel={
+            title="SİZ"
+            subtitle={
               voiceConnected
-                ? voiceStatus ===
-                    "Dinliyorum"
+                ? voiceStatus === "Dinliyorum"
                   ? "Sizi duyuyorum"
                   : "Mikrofon açık"
                 : "Ses kapalı"
             }
-            values={
-              customerWave
-            }
+            values={customerWave}
             active={
-              voiceCustomerActive
+              voiceConnected &&
+              voiceStatus === "Dinliyorum"
             }
-            variant="customer"
+            type="customer"
           />
 
-          <div className="audioCenter">
-            <div
-              className={`voiceOrb ${
-                voiceConnected
-                  ? "enabled"
-                  : ""
-              } ${
-                voiceTalhaActive
-                  ? "speaking"
-                  : ""
-              }`}
-            >
-              <div className="orbCore">
-                T
-              </div>
-            </div>
-
+          <div
+            className={`voiceCore ${
+              voiceConnected ? "connected" : ""
+            } ${
+              voiceStatus === "Talha konuşuyor"
+                ? "speaking"
+                : ""
+            }`}
+          >
+            <div>T</div>
             <span>
               {voiceConnected
                 ? voiceStatus
-                : "Chat modu"}
+                : "Talha"}
             </span>
           </div>
 
           <Waveform
-            label="TALHA"
-            sublabel={
-              voiceTalhaActive
+            title="TALHA"
+            subtitle={
+              voiceStatus === "Talha konuşuyor"
                 ? "Konuşuyor"
                 : voiceConnected
                 ? "Hazır"
                 : "Ses kapalı"
             }
-            values={
-              talhaWave
-            }
+            values={talhaWave}
             active={
-              voiceTalhaActive
+              voiceConnected &&
+              voiceStatus === "Talha konuşuyor"
             }
-            variant="talha"
+            type="talha"
           />
-        </div>
+        </section>
+
+        {/* CONTEXT MENUS */}
+
+        <section className="contextMenu">
+          <PanelButton
+            active={
+              activePanel === "verification"
+            }
+            onClick={() =>
+              togglePanel("verification")
+            }
+            icon="✓"
+            label="KVKK / Doğrulama"
+            badge={`${matchedCount}/2`}
+          />
+
+          <PanelButton
+            active={
+              activePanel === "claim"
+            }
+            onClick={() =>
+              togglePanel("claim")
+            }
+            icon="#"
+            label="Dosya"
+            badge={
+              activeClaim
+                ? activeClaim
+                : candidateClaims.length ||
+                  ""
+            }
+          />
+
+          <PanelButton
+            active={
+              activePanel === "operations"
+            }
+            onClick={() =>
+              togglePanel("operations")
+            }
+            icon="⌘"
+            label="Operasyon"
+            badge={
+              task.kayitTuru
+                ? task.kayitTuru
+                : ""
+            }
+          />
+
+          <PanelButton
+            active={
+              activePanel === "files"
+            }
+            onClick={() =>
+              togglePanel("files")
+            }
+            icon="+"
+            label="Dosyalar"
+            badge={
+              uploadedFiles.length || ""
+            }
+          />
+        </section>
+
+        {/* EXPANDABLE DRAWER */}
+
+        {activePanel && (
+          <section className="contextDrawer">
+            {activePanel === "verification" && (
+              <div className="verificationPanel">
+                <div className="drawerHeader">
+                  <div>
+                    <span className="drawerEyebrow">
+                      KVKK / KİMLİK DOĞRULAMA
+                    </span>
+
+                    <h3>
+                      {verificationStatus === "VERIFIED"
+                        ? "Doğrulama tamamlandı"
+                        : "2 bağımsız bilgi eşleşmesi gerekli"}
+                    </h3>
+                  </div>
+
+                  <div
+                    className={`verificationState ${verificationStatus.toLowerCase()}`}
+                  >
+                    {verificationStatus === "VERIFIED"
+                      ? "✓ DOĞRULANDI"
+                      : `${matchedCount} / 2`}
+                  </div>
+                </div>
+
+                <div className="verificationGrid">
+                  <div className="infoCard">
+                    <span>Arayan Rolü</span>
+
+                    <b>
+                      {ROLE_LABELS[activeRole] ||
+                        "Henüz belirlenmedi"}
+                    </b>
+
+                    <small>
+                      Rol, paylaşılabilecek bilgi
+                      kapsamını belirler.
+                    </small>
+                  </div>
+
+                  <div className="infoCard">
+                    <span>Doğrulama Kuralı</span>
+
+                    <b>
+                      Herhangi 2 farklı bilgi
+                    </b>
+
+                    <small>
+                      İki farklı bilgi tipi aynı
+                      hasar dosyasıyla eşleşmelidir.
+                    </small>
+                  </div>
+
+                  <div className="infoCard accent">
+                    <span>
+                      Öncelikli Kolay Bilgi
+                    </span>
+
+                    <b>
+                      {guide.priority ||
+                        "Özel öncelik yok"}
+                    </b>
+
+                    <small>
+                      {guide.priority
+                        ? "Zorunlu değildir; müşterinin işini kolaylaştırmak için önce sorulur."
+                        : "Mevcut bilgilerden herhangi ikisi kullanılabilir."}
+                    </small>
+                  </div>
+                </div>
+
+                <div className="verificationColumns">
+                  <div>
+                    <span className="subTitle">
+                      Kullanılabilecek bilgiler
+                    </span>
+
+                    <div className="fieldChips">
+                      {guide.fields.map(
+                        (field) => (
+                          <span key={field}>
+                            {field}
+                          </span>
+                        )
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <span className="subTitle">
+                      Görüşmede alınan bilgiler
+                    </span>
+
+                    {Object.keys(evidence).length ===
+                    0 ? (
+                      <div className="emptyMini">
+                        Henüz doğrulama bilgisi
+                        alınmadı.
+                      </div>
+                    ) : (
+                      <div className="evidenceGrid">
+                        {Object.entries(evidence).map(
+                          ([field, values]) => (
+                            <div
+                              className={`evidenceItem ${
+                                matchedFields.includes(
+                                  field
+                                )
+                                  ? "matched"
+                                  : ""
+                              }`}
+                              key={field}
+                            >
+                              <span>
+                                {FIELD_LABELS[field] ||
+                                  field}
+                              </span>
+
+                              <b>
+                                {(values || []).join(
+                                  " · "
+                                )}
+                              </b>
+
+                              {matchedFields.includes(
+                                field
+                              ) && <i>✓</i>}
+                            </div>
+                          )
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {rejectedCandidates.length > 0 && (
+                  <div className="rejectedInfo">
+                    <b>
+                      Eşleşmeyen alternatifler
+                    </b>
+
+                    <span>
+                      {rejectedCandidates
+                        .map(
+                          (item) =>
+                            `${
+                              FIELD_LABELS[
+                                item.field
+                              ] || item.field
+                            }: ${item.value}`
+                        )
+                        .join(" · ")}
+                    </span>
+
+                    <small>
+                      Bir adayın eşleşmemesi,
+                      başka iki bağımsız doğru
+                      bilgi eşleşmişse doğrulamayı
+                      bozmaz.
+                    </small>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activePanel === "claim" && (
+              <div>
+                <div className="drawerHeader">
+                  <div>
+                    <span className="drawerEyebrow">
+                      DOSYA BAĞLAMI
+                    </span>
+
+                    <h3>
+                      {activeClaim
+                        ? `Aktif dosya #${activeClaim}`
+                        : "Aktif dosya seçilmedi"}
+                    </h3>
+                  </div>
+                </div>
+
+                {candidateClaims.length === 0 ? (
+                  <div className="emptyDrawer">
+                    Doğrulama tamamlandıktan sonra
+                    eşleşen hasar dosyaları burada
+                    görünür.
+                  </div>
+                ) : (
+                  <div className="miniClaimGrid">
+                    {candidateClaims.map(
+                      (claim) => (
+                        <button
+                          key={claim.claimNo}
+                          className={`miniClaim ${
+                            activeClaim ===
+                            claim.claimNo
+                              ? "selected"
+                              : ""
+                          }`}
+                          onClick={() =>
+                            submitTurn(
+                              `${claim.claimNo} numaralı dosyayla devam edelim`
+                            )
+                          }
+                        >
+                          <span>
+                            {claim.date ||
+                              "Tarih yok"}
+                          </span>
+
+                          <b>
+                            #{claim.claimNo}
+                          </b>
+
+                          <small>
+                            {claim.branch} ·{" "}
+                            {claim.reason}
+                          </small>
+                        </button>
+                      )
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activePanel === "operations" && (
+              <div>
+                <div className="drawerHeader">
+                  <div>
+                    <span className="drawerEyebrow">
+                      OPERASYON GÖRÜNÜMÜ
+                    </span>
+
+                    <h3>
+                      AI Task Etiketleme
+                    </h3>
+                  </div>
+
+                  <span className="aiBadge">
+                    AUTO TAGGING
+                  </span>
+                </div>
+
+                <div className="tagGrid">
+                  <div>
+                    <span>Kayıt Türü</span>
+                    <b>
+                      {task.kayitTuru || "—"}
+                    </b>
+                  </div>
+
+                  <div>
+                    <span>Ana Kategori</span>
+                    <b>
+                      {task.anaKategori || "—"}
+                    </b>
+                  </div>
+
+                  <div>
+                    <span>Alt Kategori</span>
+                    <b>
+                      {task.altKategori || "—"}
+                    </b>
+                  </div>
+
+                  <div>
+                    <span>Alt Alt Kategori</span>
+                    <b>
+                      {task.altAltKategori || "—"}
+                    </b>
+                  </div>
+
+                  <div>
+                    <span>Branş</span>
+                    <b>
+                      {task.brans || "—"}
+                    </b>
+                  </div>
+
+                  <div className="wide">
+                    <span>Konu</span>
+                    <b>
+                      {task.konu || "—"}
+                    </b>
+                  </div>
+                </div>
+
+                <div className="opsDetail">
+                  <div>
+                    <span>Dialogue Act</span>
+                    <b>
+                      {meta?.plan?.dialogueAct ||
+                        "—"}
+                    </b>
+                  </div>
+
+                  <div>
+                    <span>Intent</span>
+                    <b>
+                      {intents.join(", ") ||
+                        "—"}
+                    </b>
+                  </div>
+
+                  <div>
+                    <span>Rol</span>
+                    <b>
+                      {ROLE_LABELS[activeRole] ||
+                        "—"}
+                    </b>
+                  </div>
+
+                  <div>
+                    <span>Verification</span>
+                    <b>
+                      {verificationStatus}
+                    </b>
+                  </div>
+
+                  <div>
+                    <span>Aktif Dosya</span>
+                    <b>
+                      {activeClaim || "—"}
+                    </b>
+                  </div>
+
+                  <div>
+                    <span>Model</span>
+                    <b>
+                      {meta?.model || "—"}
+                    </b>
+                  </div>
+
+                  <div>
+                    <span>Service Tier</span>
+                    <b>
+                      {meta?.serviceTier ||
+                        "—"}
+                    </b>
+                  </div>
+
+                  <div className="wide">
+                    <span>Tool Trace</span>
+                    <b>
+                      {toolTrace
+                        .map(
+                          (item) =>
+                            item.name
+                        )
+                        .join(" → ") ||
+                        "—"}
+                    </b>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activePanel === "files" && (
+              <div>
+                <div className="drawerHeader">
+                  <div>
+                    <span className="drawerEyebrow">
+                      DOSYA ALIŞVERİŞİ
+                    </span>
+
+                    <h3>
+                      Müşteri ↔ Talha
+                    </h3>
+                  </div>
+                </div>
+
+                <div className="fileDrawerGrid">
+                  <button
+                    className="uploadArea"
+                    onClick={() =>
+                      fileInputRef.current?.click()
+                    }
+                  >
+                    <strong>+</strong>
+                    <b>Müşteri dosya yüklesin</b>
+                    <small>
+                      PDF, JPG, PNG veya DOCX
+                    </small>
+                  </button>
+
+                  <div className="fileListCompact">
+                    {uploadedFiles.length === 0 ? (
+                      <div className="emptyMini">
+                        Henüz dosya yüklenmedi.
+                      </div>
+                    ) : (
+                      uploadedFiles.map(
+                        (file) => (
+                          <div
+                            key={file.id}
+                            className="fileCompact"
+                          >
+                            <span>↑</span>
+
+                            <div>
+                              <b>{file.name}</b>
+                              <small>
+                                {formatBytes(
+                                  file.size
+                                )}
+                              </small>
+                            </div>
+                          </div>
+                        )
+                      )
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </section>
+        )}
 
         {voiceError && (
-          <div className="inlineError">
-            <b>
-              Ses bağlantısı
-            </b>
-
+          <div className="errorBar">
             {voiceError}
           </div>
         )}
 
         {activity && (
-          <div className="activityLine">
-            <span className="activitySpinner" />
-
+          <div className="activityBar">
+            <i />
             {activity}
           </div>
         )}
 
-        {/* ================= TIMELINE ================= */}
+        {/* CONVERSATION */}
 
-        <div className="timeline">
-          {messages.map(
-            (message) => (
-              <div
-                key={message.id}
-                className={`messageRow ${message.role}`}
-              >
-                {message.role ===
-                  "assistant" && (
-                  <div className="talhaAvatar">
-                    T
-                  </div>
-                )}
-
-                <div className="messageStack">
-                  <div className="messageMeta">
-                    {message.role ===
-                    "assistant"
-                      ? "Talha"
-                      : "Siz"}
-
-                    {message.live && (
-                      <span className="liveTag">
-                        CANLI
-                      </span>
-                    )}
-                  </div>
-
-                  <div
-                    className={`messageBubble ${
-                      message.live
-                        ? "live"
-                        : ""
-                    }`}
-                  >
-                    {message.content ||
-                      "…"}
-
-                    {message.live && (
-                      <span className="liveCursor" />
-                    )}
-                  </div>
-
-                  {Array.isArray(
-                    message.files
-                  ) &&
-                    message.files
-                      .length >
-                      0 && (
-                      <div className="messageFiles">
-                        {message.files.map(
-                          (file) => (
-                            <a
-                              key={
-                                file.id
-                              }
-                              className="attachmentCard userAttachment"
-                              href={
-                                file.localUrl ||
-                                "#"
-                              }
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              <span className="fileIcon">
-                                ↑
-                              </span>
-
-                              <span className="fileBody">
-                                <b>
-                                  {file.name}
-                                </b>
-
-                                <small>
-                                  {formatBytes(
-                                    file.size
-                                  )}{" "}
-                                  ·
-                                  Yüklendi
-                                </small>
-                              </span>
-
-                              <span className="fileState">
-                                ✓
-                              </span>
-                            </a>
-                          )
-                        )}
-                      </div>
-                    )}
+        <section className="conversation">
+          {messages.map((message) => (
+            <div
+              key={message.id}
+              className={`message ${
+                message.role
+              }`}
+            >
+              {message.role === "assistant" && (
+                <div className="assistantAvatar">
+                  T
                 </div>
+              )}
+
+              <div className="messageBody">
+                <div className="messageName">
+                  {message.role === "assistant"
+                    ? "Talha"
+                    : "Siz"}
+
+                  {message.live && (
+                    <span>CANLI</span>
+                  )}
+                </div>
+
+                <div
+                  className={`bubble ${
+                    message.live ? "live" : ""
+                  }`}
+                >
+                  {message.content || "…"}
+
+
+                  {message.live && (
+                    <i className="cursor" />
+                  )}
+                </div>
+
+                {Array.isArray(
+                  message.files
+                ) &&
+                  message.files.length > 0 && (
+                    <div className="messageFiles">
+                      {message.files.map(
+                        (file) => (
+                          <a
+                            key={file.id}
+                            href={
+                              file.localUrl ||
+                              "#"
+                            }
+                            target="_blank"
+                            rel="noreferrer"
+                            className="messageFile"
+                          >
+                            <span>↑</span>
+
+                            <div>
+                              <b>
+                                {file.name}
+                              </b>
+
+                              <small>
+                                {formatBytes(
+                                  file.size
+                                )}
+                              </small>
+                            </div>
+                          </a>
+                        )
+                      )}
+                    </div>
+                  )}
               </div>
-            )
-          )}
+            </div>
+          ))}
 
-          {/* ================= QUICK ACTIONS ================= */}
+          {ui.quickActions?.length > 0 && (
+            <div className="quickActions">
+              <span>Hızlı seçim</span>
 
-          {ui.quickActions?.length >
-            0 && (
-            <div className="smartActions">
-              <div className="smartActionLabel">
-                Hızlı seçim
-              </div>
-
-              <div className="smartActionButtons">
+              <div>
                 {ui.quickActions.map(
-                  (
-                    action,
-                    index
-                  ) => (
+                  (action, index) => (
                     <button
                       key={`${action.value}-${index}`}
                       onClick={() =>
@@ -2267,38 +2356,33 @@ Hemen cevap ver.
             </div>
           )}
 
-          {/* ================= CLAIM CARDS ================= */}
-
-          {ui.claimCards?.length >
-            0 && (
-            <div className="richBlock">
-              <div className="richBlockTitle">
+          {ui.claimCards?.length > 0 && (
+            <div className="richCard">
+              <div className="richTitle">
                 <div>
-                  <span className="eyebrow">
+                  <span>
                     EŞLEŞEN DOSYALAR
                   </span>
 
-                  <h3>
-                    Hangi dosyayla devam edelim?
-                  </h3>
+                  <b>
+                    Hangi dosyayla devam
+                    edelim?
+                  </b>
                 </div>
 
-                <span className="countBadge">
+                <i>
                   {
                     ui.claimCards
                       .length
                   }
-                </span>
+                </i>
               </div>
 
-              <div className="claimGrid">
+              <div className="claimCards">
                 {ui.claimCards.map(
                   (claim) => (
                     <button
-                      key={
-                        claim.id
-                      }
-                      className="claimCard"
+                      key={claim.id}
                       onClick={() =>
                         submitTurn(
                           claim.action
@@ -2306,15 +2390,9 @@ Hemen cevap ver.
                         )
                       }
                     >
-                      <div className="claimCardTop">
-                        <span className="claimDate">
-                          {claim.title}
-                        </span>
-
-                        <span className="claimArrow">
-                          →
-                        </span>
-                      </div>
+                      <span>
+                        {claim.title}
+                      </span>
 
                       <b>
                         {claim.subtitle}
@@ -2324,9 +2402,9 @@ Hemen cevap ver.
                         {claim.meta}
                       </small>
 
-                      <div className="claimStatus">
+                      <em>
                         {claim.status}
-                      </div>
+                      </em>
                     </button>
                   )
                 )}
@@ -2334,28 +2412,24 @@ Hemen cevap ver.
             </div>
           )}
 
-          {/* ================= TALHA DOCUMENTS ================= */}
-
           {ui.documentCards?.length >
             0 && (
-            <div className="richBlock documentsBlock">
-              <div className="richBlockTitle">
+            <div className="richCard">
+              <div className="richTitle">
                 <div>
-                  <span className="eyebrow">
+                  <span>
                     TALHA'DAN DOSYALAR
                   </span>
 
-                  <h3>
-                    Paylaşılabilir belgeler
-                  </h3>
+                  <b>
+                    Güvenli belgeler
+                  </b>
                 </div>
 
-                <span className="verifiedMini">
-                  ✓ KVKK
-                </span>
+                <i>✓</i>
               </div>
 
-              <div className="documentGrid">
+              <div className="botFiles">
                 {ui.documentCards.map(
                   (document) => (
                     <a
@@ -2365,13 +2439,12 @@ Hemen cevap ver.
                       href={`/api/demo-document/${document.id}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="botDocument"
                     >
-                      <div className="documentIcon">
+                      <span className="pdfIcon">
                         PDF
-                      </div>
+                      </span>
 
-                      <div className="documentInfo">
+                      <div>
                         <b>
                           {document.label}
                         </b>
@@ -2380,15 +2453,13 @@ Hemen cevap ver.
                           Dosya{" "}
                           {
                             document.claimNo
-                          }{" "}
-                          · Güvenli
-                          paylaşım
+                          }
                         </small>
                       </div>
 
-                      <span>
+                      <strong>
                         ↓
-                      </span>
+                      </strong>
                     </a>
                   )
                 )}
@@ -2397,66 +2468,36 @@ Hemen cevap ver.
           )}
 
           <div ref={bottomRef} />
-        </div>
+        </section>
 
-        {/* ================= COMPOSER ================= */}
+        {/* COMPOSER */}
 
-        <div className="composerDock">
-          {uploadedFiles.length >
-            0 && (
-            <div className="uploadTray">
-              {uploadedFiles
-                .slice(-3)
-                .map(
-                  (file) => (
-                    <div
-                      key={
-                        file.id
-                      }
-                      className="uploadChip"
-                    >
-                      <span>
-                        ✓
-                      </span>
-
-                      <b>
-                        {file.name}
-                      </b>
-                    </div>
-                  )
-                )}
-            </div>
-          )}
+        <footer className="composerDock">
+          <input
+            ref={fileInputRef}
+            type="file"
+            hidden
+            multiple
+            accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
+            onChange={handleFiles}
+          />
 
           <form
-            className="smartComposer"
+            className="composer"
             onSubmit={(event) => {
               event.preventDefault();
-
               submitTurn(text);
             }}
           >
-            <input
-              ref={fileInputRef}
-              type="file"
-              hidden
-              multiple
-              accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
-              onChange={handleFiles}
-            />
-
             <button
               type="button"
-              className="composerTool"
+              className="attachButton"
               onClick={() =>
                 fileInputRef.current?.click()
               }
               disabled={uploading}
-              title="Dosya yükle"
             >
-              {uploading
-                ? "…"
-                : "+"}
+              {uploading ? "…" : "+"}
             </button>
 
             <textarea
@@ -2468,20 +2509,16 @@ Hemen cevap ver.
               }
               onKeyDown={(event) => {
                 if (
-                  event.key ===
-                    "Enter" &&
+                  event.key === "Enter" &&
                   !event.shiftKey
                 ) {
                   event.preventDefault();
-
-                  submitTurn(
-                    text
-                  );
+                  submitTurn(text);
                 }
               }}
               placeholder={
                 voiceConnected
-                  ? "Konuşabilir veya buradan yazabilirsiniz…"
+                  ? "Konuşabilir veya yazabilirsiniz…"
                   : "Talha'ya yazın…"
               }
               rows={1}
@@ -2489,9 +2526,9 @@ Hemen cevap ver.
 
             <button
               type="button"
-              className={`composerMic ${
+              className={`micButton ${
                 voiceConnected
-                  ? "on"
+                  ? "active"
                   : ""
               }`}
               onClick={
@@ -2499,14 +2536,13 @@ Hemen cevap ver.
                   ? closeVoice
                   : startVoice
               }
-              title="Sesli görüşme"
             >
               ◉
             </button>
 
             <button
               type="submit"
-              className="composerSend"
+              className="sendButton"
               disabled={
                 busy ||
                 !text.trim()
@@ -2516,285 +2552,12 @@ Hemen cevap ver.
             </button>
           </form>
 
-          <div className="composerHint">
-            <span>
-              AI destekli görüşme
-            </span>
-
-            <span>·</span>
-
-            <span>
-              Sesler ve metinler demo amaçlıdır
-            </span>
-          </div>
-        </div>
-      </section>
-
-      {/* ================= RIGHT CONTEXT ================= */}
-
-      <aside className="contextPanel">
-        <div className="contextHeader">
-          <div>
-            <span className="eyebrow">
-              LIVE CONTEXT
-            </span>
-
-            <h2>
-              Görüşme Bağlamı
-            </h2>
-          </div>
-
-          <span className="liveIndicator">
-            LIVE
+          <span className="footerNote">
+            AI destekli  · Ses ve
+            veriler demo amaçlıdır
           </span>
-        </div>
-
-        {/* ================= VERIFICATION ================= */}
-
-        <section className="contextSection">
-          <div className="sectionTitle">
-            <span>
-              Doğrulama
-            </span>
-
-            <StatusPill
-              status={
-                verificationStatus
-              }
-            />
-          </div>
-
-          <div className="verificationScore">
-            <div className="scoreRing">
-              <span>
-                {matchedCount}
-              </span>
-
-              <small>
-                / 2
-              </small>
-            </div>
-
-            <div>
-              <b>
-                {verificationStatus ===
-                "VERIFIED"
-                  ? "Kimlik doğrulandı"
-                  : matchedCount ===
-                    1
-                  ? "1 bilgi daha gerekli"
-                  : "2 bağımsız bilgi gerekli"}
-              </b>
-
-              <small>
-                Aynı dosyayla eşleşen farklı bilgi tipleri
-              </small>
-            </div>
-          </div>
-
-          {Object.keys(
-            evidence
-          ).length > 0 && (
-            <div className="evidenceList">
-              {Object.entries(
-                evidence
-              ).map(
-                ([
-                  field,
-                  values,
-                ]) => (
-                  <div
-                    key={field}
-                    className="evidenceRow"
-                  >
-                    <span>
-                      {FIELD_LABELS[
-                        field
-                      ] ||
-                        field}
-                    </span>
-
-                    <div>
-                      {(values || []).map(
-                        (value) => (
-                          <b key={value}>
-                            {value}
-                          </b>
-                        )
-                      )}
-                    </div>
-                  </div>
-                )
-              )}
-            </div>
-          )}
-        </section>
-
-        {/* ================= CONTEXT ================= */}
-
-        <section className="contextSection">
-          <div className="sectionTitle">
-            <span>
-              Görüşme
-            </span>
-          </div>
-
-          <div className="contextFacts">
-            <div>
-              <small>
-                Rol
-              </small>
-
-              <b>
-                {activeRole ||
-                  "Belirlenmedi"}
-              </b>
-            </div>
-
-            <div>
-              <small>
-                Aktif Dosya
-              </small>
-
-              <b>
-                {activeClaim
-                  ? `#${activeClaim}`
-                  : "Seçilmedi"}
-              </b>
-            </div>
-
-            <div>
-              <small>
-                Kanal
-              </small>
-
-              <b>
-                {voiceConnected
-                  ? "Voice + Chat"
-                  : "Chat"}
-              </b>
-            </div>
-
-            <div>
-              <small>
-                Niyet
-              </small>
-
-              <b>
-                {intents.length
-                  ? intents.join(
-                      ", "
-                    )
-                  : "—"}
-              </b>
-            </div>
-          </div>
-        </section>
-
-        {/* ================= FILES ================= */}
-
-        <section className="contextSection">
-          <div className="sectionTitle">
-            <span>
-              Dosyalar
-            </span>
-
-            <span className="numberBadge">
-              {uploadedFiles.length}
-            </span>
-          </div>
-
-          {uploadedFiles.length ===
-          0 ? (
-            <div className="emptyContext">
-              Henüz müşteri dosyası yüklenmedi.
-            </div>
-          ) : (
-            <div className="contextFiles">
-              {uploadedFiles.map(
-                (file) => (
-                  <div
-                    key={
-                      file.id
-                    }
-                    className="contextFile"
-                  >
-                    <span>
-                      ↑
-                    </span>
-
-                    <div>
-                      <b>
-                        {file.name}
-                      </b>
-
-                      <small>
-                        {formatBytes(
-                          file.size
-                        )}
-                      </small>
-                    </div>
-                  </div>
-                )
-              )}
-            </div>
-          )}
-        </section>
-
-        {/* ================= OPS ================= */}
-
-        {showOps && (
-          <section className="contextSection opsPanel">
-            <div className="sectionTitle">
-              <span>
-                Operasyon Debug
-              </span>
-            </div>
-
-            <div className="opsRows">
-              <div>
-                <span>
-                  Model
-                </span>
-
-                <b>
-                  {meta?.model ||
-                    "—"}
-                </b>
-              </div>
-
-              <div>
-                <span>
-                  Dialogue
-                </span>
-
-                <b>
-                  {meta?.plan
-                    ?.dialogueAct ||
-                    "—"}
-                </b>
-              </div>
-
-              <div>
-                <span>
-                  Tool
-                </span>
-
-                <b>
-                  {(meta?.toolTrace ||
-                    [])
-                    .map(
-                      (item) =>
-                        item.name
-                    )
-                    .join(" → ") ||
-                    "—"}
-                </b>
-              </div>
-            </div>
-          </section>
-        )}
-      </aside>
+        </footer>
+      </section>
     </main>
   );
 }
