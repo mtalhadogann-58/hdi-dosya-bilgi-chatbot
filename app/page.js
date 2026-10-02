@@ -2023,7 +2023,7 @@ Hemen cevap ver.
         <header className="conversationHeader">
           <div>
             <span className="eyebrow">
-              HDI SIGORTA · AI ASSISTANT
+              TEST TEST TEST SIGORTA · AI ASSISTANT
             </span>
 
             <h1>
