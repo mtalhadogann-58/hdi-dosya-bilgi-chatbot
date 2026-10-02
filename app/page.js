@@ -6,21 +6,42 @@ import {
   useState
 } from "react";
 
-function getClientContext() {
+
+const EMPTY_UI = {
+  quickActions: [],
+  claimCards: [],
+  documentCards: [],
+  verification: null,
+  uploadedFiles: []
+};
+
+
+function uid(prefix = "item") {
+  return `${prefix}-${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2, 8)}`;
+}
+
+
+function getClientContext(channel = "chat") {
   const now = new Date();
 
   return {
     locale:
-      navigator.language || "tr-TR",
+      navigator.language ||
+      "tr-TR",
 
     timeZone:
       Intl.DateTimeFormat()
         .resolvedOptions()
-        .timeZone || "Europe/Istanbul",
+        .timeZone ||
+      "Europe/Istanbul",
 
-    localIso: now.toISOString(),
+    localIso:
+      now.toISOString(),
 
-    localHour: now.getHours(),
+    localHour:
+      now.getHours(),
 
     localDay:
       now.toLocaleDateString(
@@ -31,168 +52,494 @@ function getClientContext() {
           month: "long",
           day: "numeric"
         }
-      )
+      ),
+
+    channel
   };
 }
 
-function fallbackGreeting(hour) {
-  const salutation =
-    hour < 5
-      ? "İyi geceler"
-      : hour < 11
-      ? "Günaydın"
-      : hour < 18
-      ? "İyi günler"
-      : "İyi akşamlar";
 
-  return `${salutation}, ben HDI Sigorta Dijital Asistanı TalhaGPT. Size nasıl yardımcı olabilirim?`;
-}
+function formatBytes(bytes = 0) {
+  if (!bytes) return "0 KB";
 
-function looksLikeCriticalIdentifier(
-  text = ""
-) {
-  const compact =
-    String(text)
-      .toLocaleUpperCase("tr-TR")
-      .replace(/\s+/g, " ")
-      .trim();
-
-  const keywordHit =
-    /(TCKN|TC K[İI]ML[İI]K|VKN|PARTAJ|DOSYA NUMARA|POL[İI]ÇE NUMARA|PLAKA)/i
-      .test(compact);
-
-  const longNumber =
-    /\b\d[\d\s-]{5,}\d\b/
-      .test(compact);
-
-  const plateLike =
-    /\b\d{2}\s*[A-ZÇĞİÖŞÜ]{1,3}\s*\d{2,5}\b/u
-      .test(compact);
-
-  return (
-    keywordHit ||
-    longNumber ||
-    plateLike
-  );
-}
-
-function pickRecordingMimeType() {
-  if (
-    typeof MediaRecorder ===
-    "undefined"
-  ) {
-    return "";
+  if (bytes < 1024 * 1024) {
+    return `${Math.max(
+      1,
+      Math.round(bytes / 1024)
+    )} KB`;
   }
 
-  const candidates = [
-    "audio/webm;codecs=opus",
-    "audio/webm",
-    "audio/mp4"
-  ];
+  return `${(
+    bytes /
+    1024 /
+    1024
+  ).toFixed(1)} MB`;
+}
 
-  return (
-    candidates.find(
-      (x) =>
-        MediaRecorder
-          .isTypeSupported?.(x)
-    ) || ""
+
+function waitForDataChannel(dc) {
+  if (
+    dc.readyState ===
+    "open"
+  ) {
+    return Promise.resolve();
+  }
+
+  return new Promise(
+    (resolve, reject) => {
+      const timeout =
+        setTimeout(() => {
+          reject(
+            new Error(
+              "Ses bağlantısı zaman aşımına uğradı."
+            )
+          );
+        }, 12000);
+
+      dc.addEventListener(
+        "open",
+        () => {
+          clearTimeout(
+            timeout
+          );
+
+          resolve();
+        },
+        {
+          once: true
+        }
+      );
+
+      dc.addEventListener(
+        "error",
+        () => {
+          clearTimeout(
+            timeout
+          );
+
+          reject(
+            new Error(
+              "Ses bağlantısı kurulamadı."
+            )
+          );
+        },
+        {
+          once: true
+        }
+      );
+    }
   );
 }
 
+
+function Waveform({
+  values = [],
+  label,
+  sublabel,
+  active,
+  variant = "customer"
+}) {
+  return (
+    <div
+      className={`waveCard ${variant} ${
+        active ? "active" : ""
+      }`}
+    >
+      <div className="waveIdentity">
+        <span className="waveLabel">
+          {label}
+        </span>
+
+        <span className="waveSub">
+          {sublabel}
+        </span>
+      </div>
+
+      <div className="waveBars">
+        {values.map(
+          (value, index) => (
+            <span
+              key={index}
+              style={{
+                height:
+                  `${Math.max(
+                    4,
+                    value
+                  )}%`
+              }}
+            />
+          )
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+function StatusPill({
+  status
+}) {
+  const map = {
+    VERIFIED: {
+      label:
+        "Doğrulandı",
+      className:
+        "verified"
+    },
+
+    IN_PROGRESS: {
+      label:
+        "Doğrulama sürüyor",
+      className:
+        "progress"
+    },
+
+    UNVERIFIED: {
+      label:
+        "Doğrulanmadı",
+      className:
+        "muted"
+    }
+  };
+
+  const item =
+    map[status] ||
+    map.UNVERIFIED;
+
+  return (
+    <span
+      className={`statePill ${item.className}`}
+    >
+      {item.label}
+    </span>
+  );
+}
+
+
+const FIELD_LABELS = {
+  dosyaNo:
+    "Dosya",
+
+  policeNo:
+    "Poliçe",
+
+  plaka:
+    "Plaka",
+
+  tckn:
+    "TCKN",
+
+  vkn:
+    "VKN",
+
+  telefon:
+    "Telefon",
+
+  dogumTarihi:
+    "Doğum Tarihi",
+
+  partajNo:
+    "Partaj",
+
+  servisKodu:
+    "Servis Kodu",
+
+  eksperKodu:
+    "Eksper Kodu"
+};
+
+
 export default function Home() {
+
   const [
     messages,
     setMessages
-  ] = useState([]);
+  ] =
+    useState([]);
 
   const [
     text,
     setText
-  ] = useState("");
-
-  const [
-    loading,
-    setLoading
-  ] = useState(false);
+  ] =
+    useState("");
 
   const [
     session,
     setSession
-  ] = useState({});
+  ] =
+    useState({});
+
+  const [
+    ui,
+    setUi
+  ] =
+    useState(
+      EMPTY_UI
+    );
 
   const [
     meta,
     setMeta
-  ] = useState(null);
+  ] =
+    useState(null);
 
   const [
-    quickActions,
-    setQuickActions
-  ] = useState([]);
+    busy,
+    setBusy
+  ] =
+    useState(false);
 
   const [
-    showDemo,
-    setShowDemo
-  ] = useState(false);
+    activity,
+    setActivity
+  ] =
+    useState("");
 
   const [
-    showOps,
-    setShowOps
-  ] = useState(false);
+    voiceConnected,
+    setVoiceConnected
+  ] =
+    useState(false);
 
   const [
-    voiceMode,
-    setVoiceMode
-  ] = useState(false);
-
-  const [
-    recording,
-    setRecording
-  ] = useState(false);
-
-  const [
-    transcribing,
-    setTranscribing
-  ] = useState(false);
-
-  const [
-    speaking,
-    setSpeaking
-  ] = useState(false);
+    voiceStatus,
+    setVoiceStatus
+  ] =
+    useState("Kapalı");
 
   const [
     voiceError,
     setVoiceError
-  ] = useState("");
+  ] =
+    useState("");
 
   const [
-    lastTranscript,
-    setLastTranscript
-  ] = useState("");
+    showOps,
+    setShowOps
+  ] =
+    useState(false);
 
   const [
-    pendingTranscript,
-    setPendingTranscript
-  ] = useState("");
+    uploading,
+    setUploading
+  ] =
+    useState(false);
 
-  const recorderRef = useRef(null);
-  const streamRef = useRef(null);
-  const chunksRef = useRef([]);
-  const audioRef = useRef(null);
-  const audioUrlRef = useRef(null);
+  const [
+    uploadedFiles,
+    setUploadedFiles
+  ] =
+    useState([]);
+
+  const [
+    customerWave,
+    setCustomerWave
+  ] =
+    useState(
+      Array(22).fill(5)
+    );
+
+  const [
+    talhaWave,
+    setTalhaWave
+  ] =
+    useState(
+      Array(22).fill(5)
+    );
+
+
+  const conversationRef =
+    useRef([]);
+
+  const sessionRef =
+    useRef({});
+
+  const uploadedFilesRef =
+    useRef([]);
+
+  const greetingRef =
+    useRef("");
+
+  const fileInputRef =
+    useRef(null);
+
+  const bottomRef =
+    useRef(null);
+
+
+  /*
+   * REALTIME
+   */
+  const pcRef =
+    useRef(null);
+
+  const dcRef =
+    useRef(null);
+
+  const microphoneRef =
+    useRef(null);
+
+  const remoteAudioRef =
+    useRef(null);
+
+  const responseActiveRef =
+    useRef(false);
+
+  const userItemMapRef =
+    useRef(
+      new Map()
+    );
+
+  const processedItemsRef =
+    useRef(
+      new Set()
+    );
+
+  const currentSpeechRef =
+    useRef({
+      messageId: null,
+      target: "",
+      transcript: ""
+    });
+
+  const localMeterCleanupRef =
+    useRef(null);
+
+  const remoteMeterCleanupRef =
+    useRef(null);
+
+
+  function syncSession(
+    next
+  ) {
+    const value =
+      next &&
+      typeof next ===
+        "object"
+        ? next
+        : {};
+
+    sessionRef.current =
+      value;
+
+    setSession(
+      value
+    );
+  }
+
+
+  function syncUi(
+    next
+  ) {
+    setUi({
+      ...EMPTY_UI,
+      ...(next || {})
+    });
+  }
+
+
+  function upsertMessage(
+    id,
+    role,
+    content,
+    options = {}
+  ) {
+    const {
+      append = false,
+      live = false,
+      files = null
+    } = options;
+
+    setMessages(
+      (current) => {
+        const index =
+          current.findIndex(
+            (item) =>
+              item.id === id
+          );
+
+        if (
+          index === -1
+        ) {
+          return [
+            ...current,
+            {
+              id,
+              role,
+              content,
+              live,
+              files
+            }
+          ];
+        }
+
+        const next =
+          [...current];
+
+        next[index] = {
+          ...next[index],
+
+          role,
+
+          content:
+            append
+              ? `${next[index].content || ""}${content}`
+              : content,
+
+          live,
+
+          files:
+            files ||
+            next[index].files
+        };
+
+        return next;
+      }
+    );
+  }
+
+
+  function removeLiveFlag(
+    id
+  ) {
+    setMessages(
+      (current) =>
+        current.map(
+          (item) =>
+            item.id === id
+              ? {
+                  ...item,
+                  live: false
+                }
+              : item
+        )
+    );
+  }
+
+
+  useEffect(() => {
+    bottomRef
+      .current
+      ?.scrollIntoView({
+        behavior:
+          "smooth"
+      });
+  }, [
+    messages,
+    ui.quickActions,
+    ui.claimCards,
+    ui.documentCards
+  ]);
+
 
   async function bootstrap() {
-    const clientContext =
-      getClientContext();
-
-    setLoading(true);
-
     try {
-      const res =
+      const response =
         await fetch(
           "/api/chat",
           {
-            method: "POST",
+            method:
+              "POST",
 
             headers: {
               "Content-Type":
@@ -201,231 +548,220 @@ export default function Home() {
 
             body:
               JSON.stringify({
-                bootstrap: true,
-                clientContext
+                bootstrap:
+                  true,
+
+                clientContext:
+                  getClientContext(
+                    "chat"
+                  )
               })
           }
         );
 
       const data =
-        await res.json();
+        await response.json();
 
-      if (!res.ok) {
+      if (
+        !response.ok
+      ) {
         throw new Error(
           data.error ||
-          "Karşılama oluşturulamadı"
+          "Karşılama oluşturulamadı."
         );
       }
 
-      setMessages([
-        {
-          role: "assistant",
-          content: data.message
-        }
-      ]);
+      const greeting =
+        String(
+          data.message ||
+          ""
+        ).trim();
 
-      setSession(
-        data.session || {}
+      greetingRef.current =
+        greeting;
+
+      conversationRef.current =
+        [
+          {
+            role:
+              "assistant",
+
+            content:
+              greeting
+          }
+        ];
+
+      syncSession(
+        data.session ||
+        {}
       );
 
-      setMeta(data);
+      setMeta(
+        data
+      );
 
-    } catch {
-      setMessages([
-        {
-          role: "assistant",
-          content:
-            fallbackGreeting(
-              clientContext.localHour
-            )
-        }
-      ]);
+      syncUi(
+        data.ui
+      );
 
-      setSession({});
+      upsertMessage(
+        "opening",
+        "assistant",
+        greeting
+      );
 
-    } finally {
-      setLoading(false);
+    } catch (
+      error
+    ) {
+      const greeting =
+        "İyi günler, HDI Sigorta'dan Talha ben. Nasıl yardımcı olabilirim?";
+
+      greetingRef.current =
+        greeting;
+
+      conversationRef.current =
+        [
+          {
+            role:
+              "assistant",
+
+            content:
+              greeting
+          }
+        ];
+
+      upsertMessage(
+        "opening",
+        "assistant",
+        greeting
+      );
     }
   }
+
 
   useEffect(() => {
     bootstrap();
 
     return () => {
-      stopCurrentAudio();
-      stopMicrophoneStream();
+      closeVoice();
     };
   }, []);
 
-  function stopMicrophoneStream() {
-    if (streamRef.current) {
-      for (
-        const track of
-        streamRef.current.getTracks()
-      ) {
-        track.stop();
-      }
 
-      streamRef.current = null;
+  function chooseActivity(
+    value
+  ) {
+    const lower =
+      String(value)
+        .toLocaleLowerCase(
+          "tr-TR"
+        );
+
+    if (
+      /dosya|hasar|plaka|poliçe|police/.test(
+        lower
+      )
+    ) {
+      return "Dosya bilgileri kontrol ediliyor";
     }
+
+    if (
+      /evrak|belge|doküman|dokuman/.test(
+        lower
+      )
+    ) {
+      return "Belge bilgileri kontrol ediliyor";
+    }
+
+    if (
+      /ödeme|odeme/.test(
+        lower
+      )
+    ) {
+      return "Ödeme bilgileri kontrol ediliyor";
+    }
+
+    return "Yanıt hazırlanıyor";
   }
 
-  function stopCurrentAudio() {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-      audioRef.current = null;
-    }
 
-    if (audioUrlRef.current) {
-      URL.revokeObjectURL(
-        audioUrlRef.current
-      );
-
-      audioUrlRef.current = null;
-    }
-
-    setSpeaking(false);
-  }
-
-  async function speakText(
+  async function submitTurn(
     content,
     options = {}
   ) {
     const value =
-      String(content || "")
-        .trim();
-
-    const force =
-      Boolean(options.force);
+      String(
+        content ||
+        ""
+      ).trim();
 
     if (
       !value ||
-      (!voiceMode && !force)
+      busy
     ) {
       return;
     }
 
-    stopCurrentAudio();
-    setVoiceError("");
+    const {
+      source = "chat",
+      displayUser = true,
+      files = null
+    } = options;
 
-    try {
-      setSpeaking(true);
+    const userMessageId =
+      uid("user");
 
-      const res =
-        await fetch(
-          "/api/voice/speak",
-          {
-            method: "POST",
-
-            headers: {
-              "Content-Type":
-                "application/json"
-            },
-
-            body:
-              JSON.stringify({
-                text: value
-              })
-          }
-        );
-
-      if (!res.ok) {
-        const detail =
-          await res
-            .json()
-            .catch(() => ({}));
-
-        throw new Error(
-          detail.error ||
-          "Ses üretilemedi"
-        );
-      }
-
-      const blob =
-        await res.blob();
-
-      const url =
-        URL.createObjectURL(blob);
-
-      audioUrlRef.current = url;
-
-      const audio =
-        new Audio(url);
-
-      audioRef.current = audio;
-
-      audio.onended = () => {
-        setSpeaking(false);
-
-        URL.revokeObjectURL(url);
-
-        if (
-          audioUrlRef.current ===
-          url
-        ) {
-          audioUrlRef.current =
-            null;
+    if (
+      displayUser
+    ) {
+      upsertMessage(
+        userMessageId,
+        "user",
+        value,
+        {
+          files
         }
-
-        audioRef.current = null;
-      };
-
-      audio.onerror = () => {
-        setSpeaking(false);
-
-        setVoiceError(
-          "Ses oynatılamadı."
-        );
-      };
-
-      await audio.play();
-
-    } catch (e) {
-      setSpeaking(false);
-
-      setVoiceError(
-        e.message ||
-        "Ses üretilemedi."
       );
     }
-  }
 
-  async function send(
-    content = text,
-    options = {}
-  ) {
-    const value =
-      String(content || "")
-        .trim();
+    conversationRef.current =
+      [
+        ...conversationRef.current,
+        {
+          role: "user",
+          content: value
+        }
+      ];
 
-    if (!value || loading) {
-      return;
-    }
-
-    const shouldSpeak =
-      options.speak ??
-      voiceMode;
-
-    const nextMessages = [
-      ...messages,
-      {
-        role: "user",
-        content: value
-      }
-    ];
-
-    setMessages(nextMessages);
     setText("");
-    setQuickActions([]);
-    setLoading(true);
+    setBusy(true);
+
+    syncUi({
+      ...ui,
+      quickActions: [],
+      claimCards: [],
+      documentCards: []
+    });
+
+    const activityTimer =
+      setTimeout(
+        () => {
+          setActivity(
+            chooseActivity(
+              value
+            )
+          );
+        },
+        450
+      );
 
     try {
-      const res =
+      const response =
         await fetch(
           "/api/chat",
           {
-            method: "POST",
+            method:
+              "POST",
 
             headers: {
               "Content-Type":
@@ -435,215 +771,842 @@ export default function Home() {
             body:
               JSON.stringify({
                 messages:
-                  nextMessages,
+                  conversationRef.current,
 
-                session,
+                session:
+                  sessionRef.current,
 
-                clientContext: {
-                  ...getClientContext(),
+                uploadedFiles:
+                  uploadedFilesRef.current,
 
-                  channel:
-                    shouldSpeak
+                clientContext:
+                  getClientContext(
+                    voiceConnected ||
+                    source ===
+                      "voice"
                       ? "voice"
                       : "chat"
-                }
+                  )
               })
           }
         );
 
       const data =
-        await res.json();
+        await response.json();
 
-      if (!res.ok) {
-        throw new Error(
-          data.error ||
-          "İstek başarısız"
-        );
-      }
-
-      setMessages(
-        (m) => [
-          ...m,
-          {
-            role: "assistant",
-            content: data.message
-          }
-        ]
-      );
-
-      setSession(
-        data.session || {}
-      );
-
-      setMeta(data);
-
-      setQuickActions(
-        Array.isArray(
-          data.quickActions
-        )
-          ? data.quickActions
-          : []
-      );
-
-      if (shouldSpeak) {
-        await speakText(
-          data.message
-        );
-      }
-
-    } catch (e) {
-      const errorText =
-        `Şu anda yanıt oluşturamadım. Teknik detay: ${e.message}`;
-
-      setMessages(
-        (m) => [
-          ...m,
-          {
-            role: "assistant",
-            content: errorText
-          }
-        ]
-      );
-
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function processRecordedAudio(
-    blob,
-    mimeType
-  ) {
-    setTranscribing(true);
-    setVoiceError("");
-
-    try {
-      const ext =
-        mimeType.includes("mp4")
-          ? "m4a"
-          : "webm";
-
-      const form =
-        new FormData();
-
-      form.append(
-        "audio",
-        blob,
-        `talhagpt-${Date.now()}.${ext}`
-      );
-
-      const res =
-        await fetch(
-          "/api/voice/transcribe",
-          {
-            method: "POST",
-            body: form
-          }
-        );
-
-      const data =
-        await res.json();
-
-      if (!res.ok) {
-        throw new Error(
-          data.error ||
-          "Ses çözümlenemedi"
-        );
-      }
-
-      const transcript =
-        String(
-          data.text || ""
-        ).trim();
-
-      if (!transcript) {
-        throw new Error(
-          "Söylediğinizi net biçimde duyamadım. Tekrar deneyebilir misiniz?"
-        );
-      }
-
-      setLastTranscript(
-        transcript
-      );
-
-      /*
-       * TCKN / VKN / dosya no /
-       * poliçe no / partaj / plaka
-       * gibi kritik bilgi geldiyse
-       * önce insana teyit ettiriyoruz.
-       */
       if (
-        looksLikeCriticalIdentifier(
-          transcript
-        )
+        !response.ok
       ) {
-        setPendingTranscript(
-          transcript
+        throw new Error(
+          data.error ||
+          "Yanıt alınamadı."
         );
-
-        return;
       }
 
-      await send(
-        transcript,
-        {
-          speak: true
+      syncSession(
+        data.session ||
+        {}
+      );
+
+      syncUi(
+        data.ui || {
+          quickActions:
+            data.quickActions ||
+            []
         }
       );
 
-    } catch (e) {
-      setVoiceError(
-        e.message ||
-        "Ses çözümlenemedi."
+      setMeta(
+        data
+      );
+
+      const answer =
+        String(
+          data.message ||
+          ""
+        ).trim();
+
+      conversationRef.current =
+        [
+          ...conversationRef.current,
+          {
+            role:
+              "assistant",
+
+            content:
+              answer
+          }
+        ];
+
+      if (
+        voiceConnected
+      ) {
+        speakRealtime(
+          answer
+        );
+      } else {
+        upsertMessage(
+          uid(
+            "assistant"
+          ),
+          "assistant",
+          answer
+        );
+      }
+
+    } catch (
+      error
+    ) {
+      upsertMessage(
+        uid(
+          "assistant"
+        ),
+        "assistant",
+        `Şu anda işlemi tamamlayamadım. ${error.message}`
       );
 
     } finally {
-      setTranscribing(false);
+      clearTimeout(
+        activityTimer
+      );
+
+      setActivity("");
+      setBusy(false);
     }
   }
 
-  async function startRecording() {
+
+  /*
+   * =========================
+   * FILE UPLOAD
+   * =========================
+   */
+
+  async function handleFiles(
+    event
+  ) {
+    const files =
+      Array.from(
+        event.target.files ||
+        []
+      );
+
+    event.target.value =
+      "";
+
     if (
-      loading ||
-      transcribing
+      !files.length
+    ) {
+      return;
+    }
+
+    setUploading(
+      true
+    );
+
+    const received =
+      [];
+
+    try {
+      for (
+        const file of files
+      ) {
+        const form =
+          new FormData();
+
+        form.append(
+          "file",
+          file
+        );
+
+        const response =
+          await fetch(
+            "/api/uploads",
+            {
+              method:
+                "POST",
+
+              body:
+                form
+            }
+          );
+
+        const data =
+          await response.json();
+
+        if (
+          !response.ok
+        ) {
+          throw new Error(
+            data.error ||
+            `${file.name} yüklenemedi.`
+          );
+        }
+
+        received.push({
+          ...data.file,
+
+          localUrl:
+            URL.createObjectURL(
+              file
+            )
+        });
+      }
+
+      const nextFiles =
+        [
+          ...uploadedFilesRef.current,
+          ...received
+        ];
+
+      uploadedFilesRef.current =
+        nextFiles;
+
+      setUploadedFiles(
+        nextFiles
+      );
+
+      const names =
+        received
+          .map(
+            (item) =>
+              item.name
+          )
+          .join(", ");
+
+      const message =
+        received.length ===
+        1
+          ? `${names} dosyasını yükledim.`
+          : `${names} dosyalarını yükledim.`;
+
+      upsertMessage(
+        uid("user-file"),
+        "user",
+        message,
+        {
+          files:
+            received
+        }
+      );
+
+      await submitTurn(
+        message,
+        {
+          displayUser:
+            false,
+
+          files:
+            received
+        }
+      );
+
+    } catch (
+      error
+    ) {
+      upsertMessage(
+        uid("system"),
+        "assistant",
+        `Dosya yükleme sırasında hata oluştu: ${error.message}`
+      );
+
+    } finally {
+      setUploading(
+        false
+      );
+    }
+  }
+
+
+  /*
+   * =========================
+   * AUDIO METERS
+   * =========================
+   */
+
+  function attachMeter(
+    stream,
+    setter
+  ) {
+    const AudioContext =
+      window.AudioContext ||
+      window.webkitAudioContext;
+
+    if (
+      !AudioContext
+    ) {
+      return () => {};
+    }
+
+    const context =
+      new AudioContext();
+
+    const source =
+      context.createMediaStreamSource(
+        stream
+      );
+
+    const analyser =
+      context.createAnalyser();
+
+    analyser.fftSize =
+      128;
+
+    analyser.smoothingTimeConstant =
+      0.72;
+
+    source.connect(
+      analyser
+    );
+
+    const data =
+      new Uint8Array(
+        analyser.frequencyBinCount
+      );
+
+    const interval =
+      setInterval(
+        () => {
+          analyser.getByteFrequencyData(
+            data
+          );
+
+          const bars =
+            Array.from({
+              length: 22
+            }).map(
+              (_, index) => {
+                const position =
+                  Math.min(
+                    data.length -
+                      1,
+                    Math.floor(
+                      (
+                        index /
+                        22
+                      ) *
+                      data.length
+                    )
+                  );
+
+                const value =
+                  data[position] ||
+                  0;
+
+                return Math.min(
+                  100,
+                  Math.max(
+                    5,
+                    Math.round(
+                      (
+                        value /
+                        255
+                      ) *
+                      100
+                    )
+                  )
+                );
+              }
+            );
+
+          setter(
+            bars
+          );
+        },
+        55
+      );
+
+    return () => {
+      clearInterval(
+        interval
+      );
+
+      try {
+        source.disconnect();
+      } catch {}
+
+      try {
+        analyser.disconnect();
+      } catch {}
+
+      context
+        .close()
+        .catch(
+          () => {}
+        );
+
+      setter(
+        Array(22).fill(
+          5
+        )
+      );
+    };
+  }
+
+
+  /*
+   * =========================
+   * REALTIME VOICE
+   * =========================
+   */
+
+  function cancelRealtimeResponse() {
+    if (
+      !responseActiveRef.current
+    ) {
+      return;
+    }
+
+    const dc =
+      dcRef.current;
+
+    if (
+      !dc ||
+      dc.readyState !==
+        "open"
+    ) {
+      return;
+    }
+
+    try {
+      dc.send(
+        JSON.stringify({
+          type:
+            "response.cancel"
+        })
+      );
+    } catch {}
+
+    responseActiveRef.current =
+      false;
+  }
+
+
+  function speakRealtime(
+    content
+  ) {
+    const clean =
+      String(
+        content ||
+        ""
+      ).trim();
+
+    const dc =
+      dcRef.current;
+
+    if (
+      !clean ||
+      !dc ||
+      dc.readyState !==
+        "open"
+    ) {
+      upsertMessage(
+        uid("assistant"),
+        "assistant",
+        clean
+      );
+
+      return;
+    }
+
+    if (
+      responseActiveRef.current
+    ) {
+      cancelRealtimeResponse();
+    }
+
+    const messageId =
+      uid(
+        "assistant-live"
+      );
+
+    currentSpeechRef.current =
+      {
+        messageId,
+        target: clean,
+        transcript: ""
+      };
+
+    upsertMessage(
+      messageId,
+      "assistant",
+      "",
+      {
+        live: true
+      }
+    );
+
+    setVoiceStatus(
+      "Talha konuşuyor"
+    );
+
+    dc.send(
+      JSON.stringify({
+        type:
+          "response.create",
+
+        response: {
+          output_modalities:
+            ["audio"],
+
+          instructions:
+            `
+Aşağıdaki metni TÜRKÇE seslendir.
+
+Sen Talha'sın.
+Genç yetişkin bir ERKEK dijital asistansın.
+
+Telefon görüşmesinde gerçek bir insan müşteri temsilcisi gibi konuş.
+
+Doğal, sıcak, kendinden emin ve akıcı ol.
+
+IVR veya kurumsal anons sesi kullanma.
+
+Normal müşteri temsilcisi temposundan hafif hızlı konuş.
+
+Gereksiz duraklama yapma.
+
+Her kelimeyi ayrı ayrı vurgulama.
+
+Cümle sonlarını uzatma.
+
+Yapay nezaket tonuna girme.
+
+Metindeki bilgiyi değiştirme.
+Yeni bilgi ekleme.
+Bilgi çıkarma.
+
+SESLENDİRİLECEK METİN:
+
+${clean}
+`.trim()
+        }
+      })
+    );
+  }
+
+
+  function handleRealtimeEvent(
+    event
+  ) {
+    switch (
+      event.type
+    ) {
+
+      case "input_audio_buffer.speech_started": {
+        setVoiceStatus(
+          "Dinliyorum"
+        );
+
+        break;
+      }
+
+
+      case "input_audio_buffer.speech_stopped": {
+        setVoiceStatus(
+          "Anlıyorum"
+        );
+
+        break;
+      }
+
+
+      /*
+       * KULLANICI CANLI TRANSCRIPT
+       */
+      case "conversation.item.input_audio_transcription.delta": {
+        const itemId =
+          event.item_id;
+
+        let messageId =
+          userItemMapRef
+            .current
+            .get(
+              itemId
+            );
+
+        if (
+          !messageId
+        ) {
+          messageId =
+            `user-live-${itemId}`;
+
+          userItemMapRef
+            .current
+            .set(
+              itemId,
+              messageId
+            );
+
+          upsertMessage(
+            messageId,
+            "user",
+            "",
+            {
+              live: true
+            }
+          );
+        }
+
+        if (
+          event.delta
+        ) {
+          upsertMessage(
+            messageId,
+            "user",
+            event.delta,
+            {
+              append: true,
+              live: true
+            }
+          );
+        }
+
+        break;
+      }
+
+
+      /*
+       * FINAL STT.
+       *
+       * Partial text ne yazmış olursa olsun
+       * final transcript ile REPLACE ediyoruz.
+       */
+      case "conversation.item.input_audio_transcription.completed": {
+        const itemId =
+          event.item_id;
+
+        const finalText =
+          String(
+            event.transcript ||
+            ""
+          ).trim();
+
+        const messageId =
+          userItemMapRef
+            .current
+            .get(
+              itemId
+            ) ||
+          `user-live-${itemId}`;
+
+        upsertMessage(
+          messageId,
+          "user",
+          finalText,
+          {
+            live: false
+          }
+        );
+
+        removeLiveFlag(
+          messageId
+        );
+
+        if (
+          finalText &&
+          !processedItemsRef
+            .current
+            .has(
+              itemId
+            )
+        ) {
+          processedItemsRef
+            .current
+            .add(
+              itemId
+            );
+
+          submitTurn(
+            finalText,
+            {
+              source:
+                "voice",
+
+              displayUser:
+                false
+            }
+          );
+        }
+
+        break;
+      }
+
+
+      case "response.created": {
+        responseActiveRef.current =
+          true;
+
+        setVoiceStatus(
+          "Talha konuşuyor"
+        );
+
+        break;
+      }
+
+
+      /*
+       * TALHA CANLI TRANSCRIPT
+       */
+      case "response.output_audio_transcript.delta": {
+        const current =
+          currentSpeechRef.current;
+
+        if (
+          !current.messageId ||
+          !event.delta
+        ) {
+          break;
+        }
+
+        current.transcript +=
+          event.delta;
+
+        upsertMessage(
+          current.messageId,
+          "assistant",
+          event.delta,
+          {
+            append: true,
+            live: true
+          }
+        );
+
+        break;
+      }
+
+
+      case "response.output_audio_transcript.done": {
+        const current =
+          currentSpeechRef.current;
+
+        if (
+          !current.messageId
+        ) {
+          break;
+        }
+
+        const finalText =
+          String(
+            event.transcript ||
+            current.transcript ||
+            current.target ||
+            ""
+          ).trim();
+
+        upsertMessage(
+          current.messageId,
+          "assistant",
+          finalText,
+          {
+            live: false
+          }
+        );
+
+        break;
+      }
+
+
+      case "response.done": {
+        responseActiveRef.current =
+          false;
+
+        const current =
+          currentSpeechRef.current;
+
+        if (
+          current.messageId &&
+          !current.transcript
+        ) {
+          upsertMessage(
+            current.messageId,
+            "assistant",
+            current.target
+          );
+        }
+
+        currentSpeechRef.current =
+          {
+            messageId: null,
+            target: "",
+            transcript: ""
+          };
+
+        setVoiceStatus(
+          "Dinliyorum"
+        );
+
+        break;
+      }
+
+
+      case "error": {
+        console.error(
+          "Realtime:",
+          event
+        );
+
+        setVoiceError(
+          event.error
+            ?.message ||
+          "Ses bağlantısında hata oluştu."
+        );
+
+        break;
+      }
+
+
+      default:
+        break;
+    }
+  }
+
+
+  async function startVoice() {
+    if (
+      voiceConnected
     ) {
       return;
     }
 
     setVoiceError("");
-    setPendingTranscript("");
-
-    /*
-     * Kullanıcı konuşmaya
-     * başladığında TalhaGPT'nin
-     * mevcut sesini kesiyoruz.
-     */
-    stopCurrentAudio();
-
-    if (
-      !navigator
-        .mediaDevices
-        ?.getUserMedia
-    ) {
-      setVoiceError(
-        "Bu tarayıcı mikrofon erişimini desteklemiyor."
-      );
-
-      return;
-    }
-
-    if (
-      typeof MediaRecorder ===
-      "undefined"
-    ) {
-      setVoiceError(
-        "Bu tarayıcı ses kaydı özelliğini desteklemiyor."
-      );
-
-      return;
-    }
+    setVoiceStatus(
+      "Bağlanıyor"
+    );
 
     try {
+      const tokenResponse =
+        await fetch(
+          "/api/realtime/session",
+          {
+            method:
+              "POST"
+          }
+        );
+
+      const tokenData =
+        await tokenResponse.json();
+
+      if (
+        !tokenResponse.ok
+      ) {
+        throw new Error(
+          tokenData.error ||
+          "Ses oturumu oluşturulamadı."
+        );
+      }
+
+      const secret =
+        tokenData.value;
+
+      if (
+        !secret
+      ) {
+        throw new Error(
+          "Geçici Realtime anahtarı alınamadı."
+        );
+      }
+
       const stream =
         await navigator
           .mediaDevices
@@ -660,709 +1623,1394 @@ export default function Home() {
             }
           });
 
-      streamRef.current =
+      microphoneRef.current =
         stream;
 
-      const mimeType =
-        pickRecordingMimeType();
-
-      const recorder =
-        mimeType
-          ? new MediaRecorder(
-              stream,
-              { mimeType }
-            )
-          : new MediaRecorder(
-              stream
-            );
-
-      recorderRef.current =
-        recorder;
-
-      chunksRef.current = [];
-
-      recorder.ondataavailable =
-        (event) => {
-          if (
-            event.data?.size
-          ) {
-            chunksRef.current.push(
-              event.data
-            );
-          }
-        };
-
-      recorder.onstop =
-        async () => {
-          const finalMime =
-            recorder.mimeType ||
-            mimeType ||
-            "audio/webm";
-
-          const blob =
-            new Blob(
-              chunksRef.current,
-              {
-                type:
-                  finalMime
-              }
-            );
-
-          chunksRef.current = [];
-
-          stopMicrophoneStream();
-
-          if (
-            blob.size < 1200
-          ) {
-            setVoiceError(
-              "Çok kısa bir ses aldım. Biraz daha uzun konuşup tekrar deneyin."
-            );
-
-            return;
-          }
-
-          await processRecordedAudio(
-            blob,
-            finalMime
-          );
-        };
-
-      recorder.start();
-
-      setRecording(true);
-
-    } catch (e) {
-      stopMicrophoneStream();
-
-      setVoiceError(
-        e?.name ===
-        "NotAllowedError"
-          ? "Mikrofon izni verilmedi. Tarayıcıdaki mikrofon iznini açıp tekrar deneyin."
-          : "Mikrofon başlatılamadı."
-      );
-    }
-  }
-
-  function stopRecording() {
-    const recorder =
-      recorderRef.current;
-
-    if (
-      recorder &&
-      recorder.state !==
-        "inactive"
-    ) {
-      recorder.stop();
-    }
-
-    recorderRef.current =
-      null;
-
-    setRecording(false);
-  }
-
-  async function toggleRecording() {
-    if (recording) {
-      stopRecording();
-    } else {
-      await startRecording();
-    }
-  }
-
-  async function enableVoiceMode() {
-    if (voiceMode) {
-      stopRecording();
-      stopCurrentAudio();
-      stopMicrophoneStream();
-
-      setVoiceMode(false);
-
-      setPendingTranscript("");
-
-      return;
-    }
-
-    setVoiceMode(true);
-    setVoiceError("");
-
-    const lastAssistant =
-      [...messages]
-        .reverse()
-        .find(
-          (m) =>
-            m.role ===
-            "assistant"
+      localMeterCleanupRef.current =
+        attachMeter(
+          stream,
+          setCustomerWave
         );
 
-    /*
-     * Butona kullanıcı dokunduğu için
-     * ilk karşılama sesini burada
-     * güvenli şekilde başlatıyoruz.
-     */
-    if (
-      lastAssistant?.content
-    ) {
-      setTimeout(
-        () =>
-          speakText(
-            lastAssistant.content,
-            { force: true }
-          ),
-        0
+      const pc =
+        new RTCPeerConnection();
+
+      pcRef.current =
+        pc;
+
+      const audio =
+        new Audio();
+
+      audio.autoplay =
+        true;
+
+      audio.playsInline =
+        true;
+
+      remoteAudioRef.current =
+        audio;
+
+      pc.ontrack =
+        (trackEvent) => {
+          const remoteStream =
+            trackEvent
+              .streams[0];
+
+          audio.srcObject =
+            remoteStream;
+
+          remoteMeterCleanupRef.current?.();
+
+          remoteMeterCleanupRef.current =
+            attachMeter(
+              remoteStream,
+              setTalhaWave
+            );
+
+          audio
+            .play()
+            .catch(
+              () => {}
+            );
+        };
+
+      const micTrack =
+        stream
+          .getAudioTracks()[0];
+
+      pc.addTrack(
+        micTrack,
+        stream
       );
-    }
-  }
 
-  async function approveTranscript() {
-    const approved =
-      pendingTranscript;
+      const dc =
+        pc.createDataChannel(
+          "oai-events"
+        );
 
-    setPendingTranscript("");
+      dcRef.current =
+        dc;
 
-    if (approved) {
-      await send(
-        approved,
-        {
-          speak: true
+      dc.addEventListener(
+        "message",
+        (message) => {
+          try {
+            handleRealtimeEvent(
+              JSON.parse(
+                message.data
+              )
+            );
+          } catch (
+            error
+          ) {
+            console.error(
+              error
+            );
+          }
         }
       );
+
+      const offer =
+        await pc.createOffer();
+
+      await pc.setLocalDescription(
+        offer
+      );
+
+      const sdpResponse =
+        await fetch(
+          "https://api.openai.com/v1/realtime/calls",
+          {
+            method:
+              "POST",
+
+            headers: {
+              Authorization:
+                `Bearer ${secret}`,
+
+              "Content-Type":
+                "application/sdp"
+            },
+
+            body:
+              offer.sdp
+          }
+        );
+
+      if (
+        !sdpResponse.ok
+      ) {
+        throw new Error(
+          await sdpResponse.text()
+        );
+      }
+
+      const answer =
+        await sdpResponse.text();
+
+      await pc.setRemoteDescription({
+        type:
+          "answer",
+
+        sdp:
+          answer
+      });
+
+      await waitForDataChannel(
+        dc
+      );
+
+      setVoiceConnected(
+        true
+      );
+
+      setVoiceStatus(
+        "Dinliyorum"
+      );
+
+      /*
+       * Uzun IVR anonsu YOK.
+       */
+      speakRealtime(
+        "Buradayım, sizi dinliyorum."
+      );
+
+    } catch (
+      error
+    ) {
+      console.error(
+        error
+      );
+
+      setVoiceError(
+        error.message ||
+        "Sesli görüşme başlatılamadı."
+      );
+
+      closeVoice();
     }
   }
 
-  function retryTranscript() {
-    setPendingTranscript("");
-    setLastTranscript("");
-    setVoiceError("");
+
+  function closeVoice() {
+    cancelRealtimeResponse();
+
+    if (
+      dcRef.current
+    ) {
+      try {
+        dcRef.current.close();
+      } catch {}
+
+      dcRef.current =
+        null;
+    }
+
+    if (
+      pcRef.current
+    ) {
+      try {
+        pcRef.current.close();
+      } catch {}
+
+      pcRef.current =
+        null;
+    }
+
+    if (
+      microphoneRef.current
+    ) {
+      for (
+        const track of
+        microphoneRef.current.getTracks()
+      ) {
+        track.stop();
+      }
+
+      microphoneRef.current =
+        null;
+    }
+
+    if (
+      remoteAudioRef.current
+    ) {
+      try {
+        remoteAudioRef.current.pause();
+
+        remoteAudioRef.current.srcObject =
+          null;
+      } catch {}
+
+      remoteAudioRef.current =
+        null;
+    }
+
+    localMeterCleanupRef
+      .current?.();
+
+    remoteMeterCleanupRef
+      .current?.();
+
+    localMeterCleanupRef.current =
+      null;
+
+    remoteMeterCleanupRef.current =
+      null;
+
+    responseActiveRef.current =
+      false;
+
+    setVoiceConnected(
+      false
+    );
+
+    setVoiceStatus(
+      "Kapalı"
+    );
+
+    setCustomerWave(
+      Array(22).fill(
+        5
+      )
+    );
+
+    setTalhaWave(
+      Array(22).fill(
+        5
+      )
+    );
   }
 
-  async function reset() {
-    stopRecording();
-    stopCurrentAudio();
-    stopMicrophoneStream();
+
+  /*
+   * =========================
+   * RESET
+   * =========================
+   */
+
+  async function resetConversation() {
+    closeVoice();
+
+    conversationRef.current =
+      [];
+
+    sessionRef.current =
+      {};
+
+    uploadedFilesRef.current =
+      [];
 
     setMessages([]);
-    setText("");
     setSession({});
-    setMeta(null);
+    setUploadedFiles([]);
+    syncUi(
+      EMPTY_UI
+    );
 
-    setQuickActions([]);
+    setMeta(
+      null
+    );
 
-    setPendingTranscript("");
-    setLastTranscript("");
+    setText("");
+    setActivity("");
     setVoiceError("");
 
     await bootstrap();
   }
 
-  const voiceStatus =
-    recording
-      ? "Dinliyorum…"
-      : transcribing
-      ? "Söylediğinizi anlıyorum…"
-      : speaking
-      ? "TalhaGPT konuşuyor…"
-      : pendingTranscript
-      ? "Kritik bilgiyi onaylamanızı bekliyorum"
-      : "Hazır";
+
+  const verification =
+    session
+      ?.verification ||
+    {};
+
+  const evidence =
+    verification
+      ?.evidenceCandidates ||
+    {};
+
+  const verificationStatus =
+    verification
+      ?.status ||
+    "UNVERIFIED";
+
+  const matchedCount =
+    verification
+      ?.matchedCount ||
+    0;
+
+  const activeClaim =
+    session
+      ?.activeClaimNo ||
+    null;
+
+  const activeRole =
+    session
+      ?.role ||
+    null;
+
+  const intents =
+    meta
+      ?.plan
+      ?.intents ||
+    [];
+
+  const voiceCustomerActive =
+    voiceConnected &&
+    voiceStatus ===
+      "Dinliyorum";
+
+  const voiceTalhaActive =
+    voiceConnected &&
+    voiceStatus ===
+      "Talha konuşuyor";
+
 
   return (
-    <main className="shell">
+    <main className="workspace">
 
-      <section className="appCard">
+      {/* LEFT RAIL */}
+      <aside className="rail">
 
-        <header className="topbar">
-
-          <div className="brand">
-
-            <div className="logo">
-              HDI
-            </div>
-
-            <div>
-              <strong>
-                TalhaGPT · Dijital Asistan
-              </strong>
-
-              <span>
-                Dosya Bilgi PoC · AI Orchestration V5 · Voice Demo
-              </span>
-            </div>
-
+        <div className="railBrand">
+          <div className="hdiMark">
+            HDI
           </div>
 
-          <div className="status">
-            <i />
-            Çevrimiçi
+          <div>
+            <strong>
+              Talha AI
+            </strong>
+
+            <span>
+              Customer Relations
+            </span>
+          </div>
+        </div>
+
+
+        <div className="railDivider" />
+
+
+        <button
+          className={`voiceMainButton ${
+            voiceConnected
+              ? "connected"
+              : ""
+          }`}
+          onClick={
+            voiceConnected
+              ? closeVoice
+              : startVoice
+          }
+        >
+          <span className="voiceMainIcon">
+            {voiceConnected
+              ? "■"
+              : "●"}
+          </span>
+
+          <span>
+            {voiceConnected
+              ? "Görüşmeyi Bitir"
+              : "Sesli Görüşme"}
+          </span>
+        </button>
+
+
+        <div className="railStatus">
+
+          <span
+            className={`statusDot ${
+              voiceConnected
+                ? "online"
+                : ""
+            }`}
+          />
+
+          <div>
+            <b>
+              {voiceConnected
+                ? voiceStatus
+                : "Chat aktif"}
+            </b>
+
+            <small>
+              {voiceConnected
+                ? "Mikrofon açık"
+                : "Ses kapalı"}
+            </small>
           </div>
 
-        </header>
+        </div>
 
-        <div className="toolbar">
 
-          <button
-            onClick={() =>
-              setShowDemo(
-                (v) => !v
-              )
-            }
-          >
-            Demo doğrulama bilgileri
+        <nav className="railNav">
+
+          <button className="active">
+            <span>✦</span>
+            Görüşme
           </button>
 
           <button
             onClick={() =>
               setShowOps(
-                (v) => !v
+                (value) =>
+                  !value
               )
             }
           >
-            Operasyon görünümü
+            <span>⌘</span>
+            Operasyon
           </button>
 
           <button
-            className={
-              voiceMode
-                ? "voiceToggle active"
-                : "voiceToggle"
-            }
-
             onClick={
-              enableVoiceMode
+              resetConversation
             }
           >
-            {voiceMode
-              ? "🎙 Sesli Mod Açık"
-              : "🎙 Sesli Demoyu Başlat"}
+            <span>↻</span>
+            Yeni Oturum
           </button>
 
-          <button
-            className="ghost"
-            onClick={reset}
-          >
-            Yeni sohbet
-          </button>
+        </nav>
+
+
+        <div className="railBottom">
+          <span className="modelTag">
+            V6
+          </span>
+
+          <small>
+            GPT-5.6 Sol
+          </small>
+        </div>
+
+      </aside>
+
+
+      {/* CENTER */}
+      <section className="conversation">
+
+        <header className="conversationHeader">
+
+          <div>
+            <span className="eyebrow">
+              HDI SIGORTA · AI ASSISTANT
+            </span>
+
+            <h1>
+              Müşteri Görüşmesi
+            </h1>
+          </div>
+
+
+          <div className="headerActions">
+
+            <div className="secureState">
+              <span className="secureIcon">
+                ◈
+              </span>
+
+              <div>
+                <small>
+                  Güvenlik
+                </small>
+
+                <b>
+                  KVKK kontrollü
+                </b>
+              </div>
+            </div>
+
+          </div>
+
+        </header>
+
+
+        {/* LIVE AUDIO */}
+        <div className="audioDeck">
+
+          <Waveform
+            label="SİZ"
+            sublabel={
+              voiceConnected
+                ? voiceStatus ===
+                    "Dinliyorum"
+                  ? "Sizi duyuyorum"
+                  : "Mikrofon açık"
+                : "Ses kapalı"
+            }
+            values={
+              customerWave
+            }
+            active={
+              voiceCustomerActive
+            }
+            variant="customer"
+          />
+
+          <div className="audioCenter">
+
+            <div
+              className={`voiceOrb ${
+                voiceConnected
+                  ? "enabled"
+                  : ""
+              } ${
+                voiceTalhaActive
+                  ? "speaking"
+                  : ""
+              }`}
+            >
+              <div className="orbCore">
+                T
+              </div>
+            </div>
+
+            <span>
+              {voiceConnected
+                ? voiceStatus
+                : "Chat modu"}
+            </span>
+
+          </div>
+
+          <Waveform
+            label="TALHA"
+            sublabel={
+              voiceTalhaActive
+                ? "Konuşuyor"
+                : voiceConnected
+                ? "Hazır"
+                : "Ses kapalı"
+            }
+            values={
+              talhaWave
+            }
+            active={
+              voiceTalhaActive
+            }
+            variant="talha"
+          />
 
         </div>
 
-        {showDemo && (
-          <div className="demoBox">
 
+        {voiceError && (
+          <div className="inlineError">
             <b>
-              Sentetik PoC verileri
+              Ses bağlantısı
             </b>
 
-            <p>
-              <b>Sigortalı:</b>{" "}
-              TCKN 11111111111 ·
-              dosya 294551 / 281204 ·
-              poliçe 2000294688416 /
-              2000294000001 ·
-              plaka 16AD630
-            </p>
-
-            <p>
-              <b>Mağdur:</b>{" "}
-              TCKN 22222222222 ·
-              dosya 294551 ·
-              plaka 16CAF273
-            </p>
-
-            <p>
-              <b>Servis:</b>{" "}
-              servis kodu 3840 ·
-              VKN 6360039002 ·
-              dosya 294551 / 281204
-            </p>
-
-            <p>
-              <b>Acente:</b>{" "}
-              partaj 7693 ·
-              dosya 294551 / 281204 ·
-              plaka 16AD630
-            </p>
-
-            <p>
-              <b>
-                Claim selection:
-              </b>{" "}
-              15 Mart 2026 → 281204 ·
-              2 Temmuz 2026 → 294551
-            </p>
-
-            <small>
-              Gerçek kişi verisi değildir.
-              İkinci dosya çoklu dosya
-              seçim davranışını test
-              etmek için sentetik olarak
-              eklenmiştir.
-            </small>
-
+            {voiceError}
           </div>
         )}
 
-        {showOps && meta && (
-          <div className="opsBox">
 
-            <div>
-              <span>Diyalog</span>
-              <b>
-                {meta.plan
-                  ?.dialogueAct ||
-                  "-"}
-              </b>
-            </div>
-
-            <div>
-              <span>Niyet</span>
-              <b>
-                {(meta.plan
-                  ?.intents ||
-                  [])
-                  .join(", ") ||
-                  "-"}
-              </b>
-            </div>
-
-            <div>
-              <span>Rol</span>
-              <b>
-                {meta.session
-                  ?.role ||
-                  "-"}
-              </b>
-            </div>
-
-            <div>
-              <span>
-                Doğrulama
-              </span>
-
-              <b>
-                {meta.session
-                  ?.verification
-                  ?.status ||
-                  "-"}
-              </b>
-            </div>
-
-            <div>
-              <span>Kanıt</span>
-
-              <b>
-                {Object.keys(
-                  meta.session
-                    ?.verification
-                    ?.verifiedFields ||
-                    {}
-                ).join(", ") ||
-                  "-"}
-              </b>
-            </div>
-
-            <div>
-              <span>
-                Aktif Dosya
-              </span>
-
-              <b>
-                {meta.session
-                  ?.activeClaimNo ||
-                  "-"}
-              </b>
-            </div>
-
-            <div>
-              <span>
-                Aday Dosya
-              </span>
-
-              <b>
-                {meta.session
-                  ?.candidateClaims
-                  ?.length ??
-                  0}
-              </b>
-            </div>
-
-            <div>
-              <span>Tool</span>
-
-              <b>
-                {(meta.toolTrace ||
-                  [])
-                  .map(
-                    (x) =>
-                      x.name
-                  )
-                  .join(" → ") ||
-                  "-"}
-              </b>
-            </div>
-
-            <div>
-              <span>
-                Kayıt Türü
-              </span>
-
-              <b>
-                {meta.task
-                  ?.kayitTuru ||
-                  "-"}
-              </b>
-            </div>
-
-            <div>
-              <span>Model</span>
-
-              <b>
-                {meta.model ||
-                  "-"}
-              </b>
-            </div>
-
+        {activity && (
+          <div className="activityLine">
+            <span className="activitySpinner" />
+            {activity}
           </div>
         )}
 
-        {voiceMode && (
-          <div className="voicePanel">
 
-            <div className="voicePanelTop">
-
-              <div>
-                <b>
-                  Sesli Görüşme
-                </b>
-
-                <span>
-                  {voiceStatus}
-                </span>
-              </div>
-
-              <button
-                className={`micButton ${
-                  recording
-                    ? "recording"
-                    : ""
-                }`}
-
-                onClick={
-                  toggleRecording
-                }
-
-                disabled={
-                  loading ||
-                  transcribing ||
-                  Boolean(
-                    pendingTranscript
-                  )
-                }
-              >
-                {recording
-                  ? "■ Bitir"
-                  : "🎙 Konuş"}
-              </button>
-
-            </div>
-
-            {lastTranscript &&
-              !pendingTranscript && (
-                <div className="transcriptPreview">
-
-                  <span>
-                    Son duyduğum
-                  </span>
-
-                  <b>
-                    {lastTranscript}
-                  </b>
-
-                </div>
-              )}
-
-            {pendingTranscript && (
-              <div className="transcriptConfirm">
-
-                <span>
-                  Kritik bilgiyi şöyle anladım:
-                </span>
-
-                <strong>
-                  {pendingTranscript}
-                </strong>
-
-                <div>
-
-                  <button
-                    onClick={
-                      approveTranscript
-                    }
-                  >
-                    Doğru, gönder
-                  </button>
-
-                  <button
-                    className="secondary"
-                    onClick={
-                      retryTranscript
-                    }
-                  >
-                    Tekrar söyle
-                  </button>
-
-                </div>
-
-              </div>
-            )}
-
-            {voiceError && (
-              <div className="voiceError">
-                {voiceError}
-              </div>
-            )}
-
-            <small className="aiVoiceDisclosure">
-
-              Duyduğunuz ses yapay zekâ
-              tarafından üretilir.
-
-              TCKN, VKN, partaj,
-              dosya/poliçe numarası
-              ve plaka gibi kritik
-              bilgiler agent'a
-              gönderilmeden önce
-              ekranda teyit edilir.
-
-            </small>
-
-          </div>
-        )}
-
-        <div className="messages">
+        <div className="timeline">
 
           {messages.map(
-            (m, i) => (
+            (message) => (
+
               <div
-                key={i}
-                className={`row ${m.role}`}
+                key={
+                  message.id
+                }
+                className={`messageRow ${message.role}`}
               >
 
-                {m.role ===
+                {message.role ===
                   "assistant" && (
-                    <div className="avatar">
-                      AI
+                  <div className="talhaAvatar">
+                    T
+                  </div>
+                )}
+
+
+                <div className="messageStack">
+
+                  <div className="messageMeta">
+                    {message.role ===
+                    "assistant"
+                      ? "Talha"
+                      : "Siz"}
+
+                    {message.live && (
+                      <span className="liveTag">
+                        CANLI
+                      </span>
+                    )}
+                  </div>
+
+
+                  <div
+                    className={`messageBubble ${
+                      message.live
+                        ? "live"
+                        : ""
+                    }`}
+                  >
+                    {message.content ||
+                      "…"}
+
+
+                    {message.live && (
+                      <span className="liveCursor" />
+                    )}
+                  </div>
+
+
+                  {Array.isArray(
+                    message.files
+                  ) &&
+                    message.files.length >
+                      0 && (
+
+                    <div className="messageFiles">
+
+                      {message.files.map(
+                        (file) => (
+
+                          <a
+                            key={
+                              file.id
+                            }
+                            className="attachmentCard userAttachment"
+                            href={
+                              file.localUrl ||
+                              "#"
+                            }
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            <span className="fileIcon">
+                              ↑
+                            </span>
+
+                            <span className="fileBody">
+                              <b>
+                                {file.name}
+                              </b>
+
+                              <small>
+                                {formatBytes(
+                                  file.size
+                                )}{" "}
+                                · Yüklendi
+                              </small>
+                            </span>
+
+                            <span className="fileState">
+                              ✓
+                            </span>
+                          </a>
+
+                        )
+                      )}
+
                     </div>
                   )}
 
-                <div className="bubble">
-                  {m.content}
                 </div>
 
               </div>
             )
           )}
 
-          {loading && (
-            <div className="row assistant">
 
-              <div className="avatar">
-                AI
+          {/* QUICK ACTIONS */}
+          {ui.quickActions
+            ?.length > 0 && (
+
+            <div className="smartActions">
+
+              <div className="smartActionLabel">
+                Hızlı seçim
               </div>
 
-              <div className="bubble typing">
-                <span />
-                <span />
-                <span />
+              <div className="smartActionButtons">
+
+                {ui.quickActions.map(
+                  (
+                    action,
+                    index
+                  ) => (
+
+                    <button
+                      key={`${action.value}-${index}`}
+                      onClick={() =>
+                        submitTurn(
+                          action.value
+                        )
+                      }
+                    >
+                      {action.label}
+                    </button>
+
+                  )
+                )}
+
               </div>
 
             </div>
           )}
 
+
+          {/* CLAIM CARDS */}
+          {ui.claimCards
+            ?.length > 0 && (
+
+            <div className="richBlock">
+
+              <div className="richBlockTitle">
+                <div>
+                  <span className="eyebrow">
+                    EŞLEŞEN DOSYALAR
+                  </span>
+
+                  <h3>
+                    Hangi dosyayla devam edelim?
+                  </h3>
+                </div>
+
+                <span className="countBadge">
+                  {
+                    ui.claimCards
+                      .length
+                  }
+                </span>
+              </div>
+
+
+              <div className="claimGrid">
+
+                {ui.claimCards.map(
+                  (claim) => (
+
+                    <button
+                      key={
+                        claim.id
+                      }
+                      className="claimCard"
+                      onClick={() =>
+                        submitTurn(
+                          claim.action
+                            .value
+                        )
+                      }
+                    >
+
+                      <div className="claimCardTop">
+                        <span className="claimDate">
+                          {claim.title}
+                        </span>
+
+                        <span className="claimArrow">
+                          →
+                        </span>
+                      </div>
+
+                      <b>
+                        {claim.subtitle}
+                      </b>
+
+                      <small>
+                        {claim.meta}
+                      </small>
+
+                      <div className="claimStatus">
+                        {claim.status}
+                      </div>
+
+                    </button>
+
+                  )
+                )}
+
+              </div>
+
+            </div>
+          )}
+
+
+          {/* BOT DOCUMENT CARDS */}
+          {ui.documentCards
+            ?.length > 0 && (
+
+            <div className="richBlock documentsBlock">
+
+              <div className="richBlockTitle">
+
+                <div>
+                  <span className="eyebrow">
+                    TALHA'DAN DOSYALAR
+                  </span>
+
+                  <h3>
+                    Paylaşılabilir belgeler
+                  </h3>
+                </div>
+
+                <span className="verifiedMini">
+                  ✓ KVKK
+                </span>
+
+              </div>
+
+
+              <div className="documentGrid">
+
+                {ui.documentCards.map(
+                  (document) => (
+
+                    <a
+                      key={
+                        document.id
+                      }
+                      href={`/api/demo-document/${document.id}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="botDocument"
+                    >
+                      <div className="documentIcon">
+                        PDF
+                      </div>
+
+                      <div className="documentInfo">
+                        <b>
+                          {document.label}
+                        </b>
+
+                        <small>
+                          Dosya{" "}
+                          {document.claimNo}{" "}
+                          · Güvenli paylaşım
+                        </small>
+                      </div>
+
+                      <span>
+                        ↓
+                      </span>
+
+                    </a>
+
+                  )
+                )}
+
+              </div>
+
+            </div>
+          )}
+
+
+          <div
+            ref={
+              bottomRef
+            }
+          />
+
         </div>
 
-        {!loading &&
-          quickActions.length >
+
+        {/* COMPOSER */}
+        <div className="composerDock">
+
+          {uploadedFiles.length >
             0 && (
-            <div className="quickActions">
 
-              {quickActions.map(
-                (a) => (
-                  <button
-                    key={`${a.label}-${a.value}`}
+            <div className="uploadTray">
 
-                    onClick={() =>
-                      send(
-                        a.value,
-                        {
-                          speak:
-                            voiceMode
-                        }
-                      )
+              {uploadedFiles
+                .slice(-3)
+                .map(
+                  (file) => (
+
+                  <div
+                    key={
+                      file.id
                     }
+                    className="uploadChip"
                   >
-                    {a.label}
-                  </button>
+                    <span>
+                      ✓
+                    </span>
+
+                    <b>
+                      {file.name}
+                    </b>
+                  </div>
+
                 )
               )}
 
             </div>
           )}
 
-        <form
-          className="composer"
 
-          onSubmit={(e) => {
-            e.preventDefault();
-            send();
-          }}
-        >
+          <form
+            className="smartComposer"
+            onSubmit={
+              (event) => {
+                event.preventDefault();
 
-          <textarea
-            value={text}
-
-            onChange={(e) =>
-              setText(
-                e.target.value
-              )
-            }
-
-            onKeyDown={(e) => {
-              if (
-                e.key ===
-                  "Enter" &&
-                !e.shiftKey
-              ) {
-                e.preventDefault();
-                send();
+                submitTurn(
+                  text
+                );
               }
-            }}
-
-            placeholder="Mesajınızı yazın..."
-
-            rows={1}
-          />
-
-          <button
-            type="submit"
-
-            disabled={
-              loading ||
-              !text.trim()
             }
           >
-            Gönder
-          </button>
 
-        </form>
+            <input
+              ref={
+                fileInputRef
+              }
+              type="file"
+              hidden
+              multiple
+              accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
+              onChange={
+                handleFiles
+              }
+            />
 
-        <footer>
-          AI konuşmayı planlar ·
-          Tool'lar gerçeği doğrular ·
-          Guardrail'ler sınırı çizer ·
-          AI doğal cevabı üretir
-        </footer>
+
+            <button
+              type="button"
+              className="composerTool"
+              onClick={() =>
+                fileInputRef
+                  .current
+                  ?.click()
+              }
+              disabled={
+                uploading
+              }
+              title="Dosya yükle"
+            >
+              {uploading
+                ? "…"
+                : "+"}
+            </button>
+
+
+            <textarea
+              value={
+                text
+              }
+              onChange={
+                (event) =>
+                  setText(
+                    event
+                      .target
+                      .value
+                  )
+              }
+              onKeyDown={
+                (event) => {
+                  if (
+                    event.key ===
+                      "Enter" &&
+                    !event.shiftKey
+                  ) {
+                    event.preventDefault();
+
+                    submitTurn(
+                      text
+                    );
+                  }
+                }
+              }
+              placeholder={
+                voiceConnected
+                  ? "Konuşabilir veya buradan yazabilirsiniz…"
+                  : "Talha'ya yazın…"
+              }
+              rows={1}
+            />
+
+
+            <button
+              type="button"
+              className={`composerMic ${
+                voiceConnected
+                  ? "on"
+                  : ""
+              }`}
+              onClick={
+                voiceConnected
+                  ? closeVoice
+                  : startVoice
+              }
+              title="Sesli görüşme"
+            >
+              ◉
+            </button>
+
+
+            <button
+              type="submit"
+              className="composerSend"
+              disabled={
+                busy ||
+                !text.trim()
+              }
+            >
+              ↑
+            </button>
+
+          </form>
+
+
+          <div className="composerHint">
+            <span>
+              AI destekli görüşme
+            </span>
+
+            <span>
+              ·
+            </span>
+
+            <span>
+              Sesler ve metinler demo amaçlıdır
+            </span>
+          </div>
+
+        </div>
 
       </section>
+
+
+      {/* RIGHT CONTEXT */}
+      <aside className="contextPanel">
+
+        <div className="contextHeader">
+
+          <div>
+            <span className="eyebrow">
+              LIVE CONTEXT
+            </span>
+
+            <h2>
+              Görüşme Bağlamı
+            </h2>
+          </div>
+
+          <span className="liveIndicator">
+            LIVE
+          </span>
+
+        </div>
+
+
+        {/* VERIFICATION */}
+        <section className="contextSection">
+
+          <div className="sectionTitle">
+            <span>
+              Doğrulama
+            </span>
+
+            <StatusPill
+              status={
+                verificationStatus
+              }
+            />
+          </div>
+
+
+          <div className="verificationScore">
+
+            <div className="scoreRing">
+              <span>
+                {matchedCount}
+              </span>
+
+              <small>
+                / 2
+              </small>
+            </div>
+
+            <div>
+              <b>
+                {verificationStatus ===
+                "VERIFIED"
+                  ? "Kimlik doğrulandı"
+                  : matchedCount ===
+                    1
+                  ? "1 bilgi daha gerekli"
+                  : "2 bağımsız bilgi gerekli"}
+              </b>
+
+              <small>
+                Aynı dosyayla eşleşen farklı bilgi tipleri
+              </small>
+            </div>
+
+          </div>
+
+
+          {Object.keys(
+            evidence
+          ).length > 0 && (
+
+            <div className="evidenceList">
+
+              {Object.entries(
+                evidence
+              ).map(
+                ([
+                  field,
+                  values
+                ]) => (
+
+                  <div
+                    key={
+                      field
+                    }
+                    className="evidenceRow"
+                  >
+                    <span>
+                      {FIELD_LABELS[
+                        field
+                      ] ||
+                        field}
+                    </span>
+
+                    <div>
+                      {(
+                        values ||
+                        []
+                      ).map(
+                        (
+                          value
+                        ) => (
+
+                          <b
+                            key={
+                              value
+                            }
+                          >
+                            {value}
+                          </b>
+
+                        )
+                      )}
+                    </div>
+                  </div>
+
+                )
+              )}
+
+            </div>
+          )}
+
+        </section>
+
+
+        {/* IDENTITY */}
+        <section className="contextSection">
+
+          <div className="sectionTitle">
+            <span>
+              Görüşme
+            </span>
+          </div>
+
+
+          <div className="contextFacts">
+
+            <div>
+              <small>
+                Rol
+              </small>
+
+              <b>
+                {activeRole ||
+                  "Belirlenmedi"}
+              </b>
+            </div>
+
+
+            <div>
+              <small>
+                Aktif Dosya
+              </small>
+
+              <b>
+                {activeClaim
+                  ? `#${activeClaim}`
+                  : "Seçilmedi"}
+              </b>
+            </div>
+
+
+            <div>
+              <small>
+                Kanal
+              </small>
+
+              <b>
+                {voiceConnected
+                  ? "Voice + Chat"
+                  : "Chat"}
+              </b>
+            </div>
+
+
+            <div>
+              <small>
+                Niyet
+              </small>
+
+              <b>
+                {intents.length
+                  ? intents.join(
+                      ", "
+                    )
+                  : "—"}
+              </b>
+            </div>
+
+          </div>
+
+        </section>
+
+
+        {/* FILES */}
+        <section className="contextSection">
+
+          <div className="sectionTitle">
+            <span>
+              Dosyalar
+            </span>
+
+            <span className="numberBadge">
+              {uploadedFiles.length}
+            </span>
+          </div>
+
+
+          {uploadedFiles.length ===
+          0 ? (
+
+            <div className="emptyContext">
+              Henüz müşteri dosyası yüklenmedi.
+            </div>
+
+          ) : (
+
+            <div className="contextFiles">
+
+              {uploadedFiles.map(
+                (file) => (
+
+                  <div
+                    key={
+                      file.id
+                    }
+                    className="contextFile"
+                  >
+                    <span>
+                      ↑
+                    </span>
+
+                    <div>
+                      <b>
+                        {file.name}
+                      </b>
+
+                      <small>
+                        {formatBytes(
+                          file.size
+                        )}
+                      </small>
+                    </div>
+                  </div>
+
+                )
+              )}
+
+            </div>
+          )}
+
+        </section>
+
+
+        {/* OPS */}
+        {showOps && (
+          <section className="contextSection opsPanel">
+
+            <div className="sectionTitle">
+              <span>
+                Operasyon Debug
+              </span>
+            </div>
+
+
+            <div className="opsRows">
+
+              <div>
+                <span>
+                  Model
+                </span>
+
+                <b>
+                  {meta
+                    ?.model ||
+                    "—"}
+                </b>
+              </div>
+
+              <div>
+                <span>
+                  Dialogue
+                </span>
+
+                <b>
+                  {meta
+                    ?.plan
+                    ?.dialogueAct ||
+                    "—"}
+                </b>
+              </div>
+
+              <div>
+                <span>
+                  Tool
+                </span>
+
+                <b>
+                  {(
+                    meta
+                      ?.toolTrace ||
+                    []
+                  )
+                    .map(
+                      (item) =>
+                        item.name
+                    )
+                    .join(
+                      " → "
+                    ) ||
+                    "—"}
+                </b>
+              </div>
+
+            </div>
+
+          </section>
+        )}
+
+      </aside>
 
     </main>
   );
